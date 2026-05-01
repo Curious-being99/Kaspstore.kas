@@ -1,0 +1,16 @@
+{
+  "name": "Kaspstore.kas",
+  "short_name": "Kaspstore.kas",
+  "description": "Decentralized Registry Protocol for the Kaspa BlockDAG Ecosystem",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#010813",
+  "theme_color": "#70c7ba",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/kaspanet/branding/main/kaspa-icon-teal.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

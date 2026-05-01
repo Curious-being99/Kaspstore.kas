@@ -1,11 +1,32 @@
-<div align="center">
+# Kaspstore.kas
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+Kaspstore.kas is a decentralized application marketplace built on the Kaspa blockchain. It provides a secure, censorship-resistant platform where users can discover, install, and manage applications, manage their digital assets, and participate in community-driven governance.
 
-  <h1>Built with AI Studio</h2>
+## Features
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+- **Decentralized Marketplace:** Explore and install dApps directly from the blockchain.
+- **KNS Identity & Wallet Integration:** Authenticate using Kaspa wallets and manage your digital identity with KNS.
+- **Community Governance:** Participate in decentralized proposals to influence protocol trajectory, with voting linked to KNS identities.
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## Deployment & Requirements
 
-</div>
+This project is configured for modern Node.js environments.
+
+- **Engine:** Node.js 20 or higher.
+- **Build System:** Uses Vite and esbuild for efficient production builds.
+
+### Development
+
+```bash
+npm install
+npm run dev
+```
+
+### Build and Deploy
+
+```bash
+npm run build
+npm start
+```
+
+The build command compiles the server entry point (`server.ts`) to `dist/server.cjs` and bundles the frontend.

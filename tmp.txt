@@ -1,0 +1,61 @@
+207:  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
+208:  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
+209:  return num.toString();
+219:  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+243:  return (
+296:  return (
+428:    return provider;
+430:  return null;
+473:    if (!isOpen) return;
+484:    return () => clearInterval(interval);
+513:  return (
+623:  return (
+715:    return () => clearInterval(timer);
+718:  if (featured.length === 0) return null;
+720:  return (
+801:  if (!isOpen) return null;
+803:  return (
+923:  return (
+949:                return (
+1089:    return (
+1326:    if (!q) return;
+1372:      return;
+1416:      return;
+1433:          return 100;
+1435:        return prev + 10;
+1500:      return;
+1510:      return;
+1514:      return;
+1539:  return (
+2346:  return (
+2613:    return () => clearTimeout(timeout);
+2642:      return new Promise((resolve, reject) => {
+2678:      return null;
+2717:    return (
+2756:    return (
+2861:        return;
+2932:      return;
+2937:      return;
+3007:      return;
+3060:      return;
+3097:  return (
+4143:                      Cancel & return to specs
+4195:  return (
+4547:  return (
+4675:    return () => clearInterval(timer);
+4736:      return;
+4786:    return () => {
+4799:        return;
+4809:        return;
+4815:        return;
+4823:        return;
+4830:        return;
+4875:        return;
+4972:      return;
+5082:    return displayApps.filter((app) => {
+5117:      return matchesSearch && matchesCategory && matchesPrice && matchesSubTab;
+5129:    return () => clearTimeout(timer);
+5150:    return () => clearTimeout(timer);
+5153:  return (
+5197:                    return (
+5231:                        return (
