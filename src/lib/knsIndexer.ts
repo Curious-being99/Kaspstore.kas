@@ -33,7 +33,7 @@ export const KnsIndexer = {
       const name = domain.toLowerCase().endsWith('.kas') ? domain.toLowerCase() : `${domain.toLowerCase()}.kas`;
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 35000); // 35s for frontend to allow backend retries to finish
       
       // Try the check endpoint first
       const checkResponse = await fetch(`${KNS_BASE_URL}/domains/check/${encodeURIComponent(name)}`, { signal: controller.signal });
@@ -52,7 +52,7 @@ export const KnsIndexer = {
       // Fallback: If check endpoint is not conclusive or fails (e.g. 404), 
       // try to resolve the domain. If it returns 404, it's likely available.
       const controller2 = new AbortController();
-      const timeoutId2 = setTimeout(() => controller2.abort(), 5000);
+      const timeoutId2 = setTimeout(() => controller2.abort(), 35000);
       const resolveResponse = await fetch(`${KNS_BASE_URL}/domains/${encodeURIComponent(name)}`, { signal: controller2.signal });
       clearTimeout(timeoutId2);
       
@@ -84,7 +84,7 @@ export const KnsIndexer = {
   async getPrimaryName(address: string): Promise<string | null> {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 35000);
       const response = await fetch(`${KNS_BASE_URL}/addresses/${address}/primary-name`, { signal: controller.signal });
       clearTimeout(timeoutId);
       if (!response.ok) return null;
@@ -103,7 +103,7 @@ export const KnsIndexer = {
     try {
       const name = domain.toLowerCase().endsWith('.kas') ? domain.toLowerCase() : `${domain.toLowerCase()}.kas`;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 35000);
       const response = await fetch(`${KNS_BASE_URL}/domains/${encodeURIComponent(name)}`, { signal: controller.signal });
       clearTimeout(timeoutId);
       if (!response.ok) return null;
@@ -121,7 +121,7 @@ export const KnsIndexer = {
   async getAssetsByOwner(address: string): Promise<KnsAsset[]> {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 35000);
       const response = await fetch(`${KNS_BASE_URL}/addresses/${address}/assets`, { signal: controller.signal });
       clearTimeout(timeoutId);
       if (!response.ok) return [];
@@ -140,7 +140,7 @@ export const KnsIndexer = {
     try {
       const name = domain.toLowerCase().endsWith('.kas') ? domain.toLowerCase() : `${domain.toLowerCase()}.kas`;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 35000);
       const response = await fetch(`${KNS_BASE_URL}/profiles/${encodeURIComponent(name)}`, { signal: controller.signal });
       clearTimeout(timeoutId);
       if (!response.ok) return null;

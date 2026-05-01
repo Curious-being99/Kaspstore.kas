@@ -1,13 +1,16 @@
 import { KnsIndexer } from './knsIndexer';
 
-export async function resolveNativeKNS(address: string): Promise<string | null> {
-    if (!address) return null;
+export async function resolveNativeKNS(
+  address: string,
+  bypassCache: boolean = false,
+): Promise<string | null> {
+  if (!address) return null;
 
-    const cacheKey = `kns_cache_${address}`;
-    const cached = localStorage.getItem(cacheKey);
-    
-    // 1. Check Local Cache
-    if (cached) {
+  const cacheKey = `kns_cache_${address}`;
+  const cached = localStorage.getItem(cacheKey);
+
+  // 1. Check Local Cache (only if not bypassing)
+  if (cached && !bypassCache) {
         try {
             const { name, timestamp } = JSON.parse(cached);
             const isNull = name === null;

@@ -47,6 +47,7 @@ import {
   Gamepad2,
   Layers,
   AlertTriangle,
+  Pencil,
   Box,
   Image as ImageIcon,
   UploadCloud,
@@ -490,16 +491,22 @@ const WalletSelectionModal = ({
 }: {
   isOpen: boolean;
   onClose: () => void;
-  onSelect: (type: "kasware" | "kasperia" | "kastle") => void;
+  onSelect: (type: "kasware" | "kasperia" | "kastle" | "manual") => void;
 }) => {
   const [availableWallets, setAvailableWallets] = useState({
     kasware: !!getWalletProvider("kasware"),
     kastle: !!getWalletProvider("kastle"),
     kasperia: !!getWalletProvider("kasperia"),
   });
+  const [showManualInput, setShowManualInput] = useState(false);
+  const [manualAddress, setManualAddress] = useState("");
 
   useEffect(() => {
     if (!isOpen) return;
+    if (isOpen) {
+      setShowManualInput(false);
+      setManualAddress("");
+    }
 
     // Check periodically in case extension injects late
     const interval = setInterval(() => {
@@ -573,40 +580,112 @@ const WalletSelectionModal = ({
               </div>
 
               <div className="space-y-2">
-                {wallets.map((wallet) => (
-                  <button
-                    key={wallet.id}
-                    onClick={() => {
-                      onSelect(wallet.id as any);
-                      onClose();
-                    }}
-                    className={`w-full group flex items-center gap-6 p-4 rounded-[2rem] border transition-all duration-300 ${
-                      wallet.available
-                        ? "bg-transparent border-transparent hover:bg-white/5 active:scale-95"
-                        : "bg-transparent border-transparent opacity-60 hover:opacity-100"
-                    }`}
-                  >
-                    <wallet.logo />
+                {!showManualInput ? (
+                  <>
+                    {wallets.map((wallet) => (
+                      <button
+                        key={wallet.id}
+                        onClick={() => {
+                          onSelect(wallet.id as any);
+                          onClose();
+                        }}
+                        className={`w-full group flex items-center gap-6 p-4 rounded-[2rem] border transition-all duration-300 ${
+                          wallet.available
+                            ? "bg-transparent border-transparent hover:bg-white/5 active:scale-95"
+                            : "bg-transparent border-transparent opacity-60 hover:opacity-100"
+                        }`}
+                      >
+                        <wallet.logo />
 
-                    <div className="text-left flex-1">
-                      <h4 className="text-2xl font-bold text-white tracking-tight font-mono">
-                        {wallet.name}
-                      </h4>
-                      {!wallet.available && (
-                        <p className="text-[10px] text-slate-600 font-bold uppercase tracking-widest mt-0.5">
-                          Not Detected
-                        </p>
-                      )}
+                        <div className="text-left flex-1">
+                          <h4 className="text-2xl font-bold text-white tracking-tight font-mono">
+                            {wallet.name}
+                          </h4>
+                          {!wallet.available && (
+                            <p className="text-[10px] text-slate-600 font-bold uppercase tracking-widest mt-0.5">
+                              Not Detected
+                            </p>
+                          )}
+                        </div>
+
+                        {wallet.available && (
+                          <ChevronRight
+                            size={20}
+                            className="text-slate-700 group-hover:text-kaspa transition-colors"
+                          />
+                        )}
+                      </button>
+                    ))}
+                    <div className="pt-4 mt-4 border-t border-white/5">
+                      <button
+                        onClick={() => setShowManualInput(true)}
+                        className="w-full flex items-center gap-5 p-4 rounded-[2rem] hover:bg-white/5 transition-all text-left group"
+                      >
+                        <div className="w-12 h-12 bg-slate-800 rounded-[14px] flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
+                          <Pencil size={20} className="text-slate-400" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="text-xl font-bold text-white tracking-tight font-mono">
+                            Paste Address
+                          </h4>
+                          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">
+                            Manual Fallback
+                          </p>
+                        </div>
+                        <ChevronRight
+                          size={16}
+                          className="text-slate-700 group-hover:text-kaspa transition-colors"
+                        />
+                      </button>
                     </div>
-
-                    {wallet.available && (
-                      <ChevronRight
-                        size={20}
-                        className="text-slate-700 group-hover:text-kaspa transition-colors"
+                  </>
+                ) : (
+                  <div className="space-y-4 pt-2">
+                    <div className="bg-slate-900 border border-white/10 rounded-2xl p-4">
+                      <label className="text-[10px] text-slate-500 uppercase font-black tracking-[0.2em] mb-2 block">
+                        Enter Kaspa Address
+                      </label>
+                      <input
+                        autoFocus
+                        type="text"
+                        value={manualAddress}
+                        onChange={(e) => setManualAddress(e.target.value)}
+                        placeholder="kaspa:qq..."
+                        className="w-full bg-transparent border-none text-white font-mono text-sm focus:ring-0 p-0 placeholder:text-slate-700 outline-none"
                       />
-                    )}
-                  </button>
-                ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setShowManualInput(false)}
+                        className="flex-1 py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-bold text-xs uppercase tracking-widest transition-colors"
+                      >
+                        Back
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (manualAddress.trim().startsWith("kaspa:")) {
+                            (window as any).__manual_kaspa_address =
+                              manualAddress.trim();
+                            onSelect("manual");
+                            onClose();
+                          } else {
+                            toast.error("Invalid address format", {
+                              description: "Must start with 'kaspa:'",
+                            });
+                          }
+                        }}
+                        disabled={!manualAddress.trim().startsWith("kaspa:")}
+                        className="flex-[2] py-4 bg-kaspa hover:bg-white text-black rounded-2xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-30"
+                      >
+                        Connect Profile
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-slate-600 text-center uppercase font-bold tracking-widest leading-relaxed px-4 mt-2">
+                      Read-only mode. Transaction signing still requires an
+                      active provider.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="mt-8 flex flex-col items-center gap-2">
@@ -5117,115 +5196,144 @@ export default function App() {
   };
 
   const connectWalletByType = async (
-    type: "kasware" | "kasperia" | "kastle",
+    type: "kasware" | "kasperia" | "kastle" | "manual",
   ) => {
     console.log(`[Wallet] Connecting to: ${type}`);
-    // IMPORTANT: No async delays before the first provider call to preserve user activation
-    let provider = getWalletProvider(type);
 
-    if (!provider) {
-      // Small check for standard 'kaspa' name which many wallets now use
-      provider = (window as any).kaspa;
-    }
+    let connectedAddress: string | null = null;
+    let walletName = "Wallet";
 
-    if (!provider) {
-      toast.error(`${type} extension not detected.`, {
-        description: "Please ensure your wallet extension is installed and active.",
-        action: {
-          label: "Install",
-          onClick: () => window.open(
-            type === "kasware" ? "https://kasware.xyz" : 
-            type === "kastle" ? "https://kastle.cc" : "https://kaperia.com",
-            "_blank"
-          ),
-        },
-      });
-      return;
-    }
+    if (type === "manual") {
+      connectedAddress = (window as any).__manual_kaspa_address;
+      if (!connectedAddress) return;
+      walletName = "Manual Address";
+      localStorage.setItem("kaspa_wallet_type", "manual");
+      localStorage.setItem("kaspstore_wallet_address", connectedAddress);
+    } else {
+      // IMPORTANT: No async delays before the first provider call to preserve user activation
+      let provider = getWalletProvider(type);
 
-    try {
-      setWalletState("scanning");
-      let accounts;
-      
-      // Direct call - preserves user activation stack
-      const requestAccounts = async () => {
-        if (provider.requestAccounts) return await provider.requestAccounts();
-        if (provider.request) {
-          const methods = ["kaspa_requestAccounts", "requestAccounts", "connect"];
-          for (const method of methods) {
-            try {
-              const res = await provider.request({ method });
-              if (res) return res;
-            } catch (e) {}
-          }
-        }
-        if (provider.enable) return await provider.enable();
-        if (provider.connect) return await provider.connect();
-        throw new Error("No connection method found");
-      };
-
-      accounts = await requestAccounts();
-      console.log(`[Wallet] Received accounts:`, accounts);
-
-      if (typeof accounts === "string") {
-        accounts = [accounts];
+      if (!provider) {
+        // Small check for standard 'kaspa' name which many wallets now use
+        provider = (window as any).kaspa;
       }
 
-      if (accounts && accounts.length > 0) {
-        const connectedAddress = accounts[0];
-        const walletName =
-          type === "kasware"
-            ? "KasWare"
-            : type === "kastle"
-              ? "Kastle"
-              : "Kasperia";
-        toast.success(`${walletName} connected successfully!`);
+      if (!provider) {
+        toast.error(`${type} extension not detected.`, {
+          description:
+            "Please ensure your wallet extension is installed and active.",
+          action: {
+            label: "Install",
+            onClick: () =>
+              window.open(
+                type === "kasware"
+                  ? "https://kasware.xyz"
+                  : type === "kastle"
+                    ? "https://kastle.cc"
+                    : "https://kaperia.com",
+                "_blank",
+              ),
+          },
+        });
+        return;
+      }
 
-        setWalletAddress(connectedAddress);
-        setWalletState("connected");
+      try {
+        setWalletState("scanning");
+        let accounts;
 
-        localStorage.setItem("kaspa_wallet_type", type);
-
-        const loadingToast = toast.loading(
-          `Scanning Kaspa Ledger for KNS identity...`,
-        );
-
-        try {
-          const knsNameFromLedger = await resolveNativeKNS(connectedAddress);
-          toast.dismiss(loadingToast);
-
-          if (knsNameFromLedger) {
-            setKnsName(knsNameFromLedger);
-            localStorage.setItem("kaspstore_kns_name", knsNameFromLedger);
-            toast.success(`Verified KNS Identity: ${knsNameFromLedger}`);
-          } else {
-            setKnsName(null);
-            localStorage.removeItem("kaspstore_kns_name");
-            if (draftKnsName) {
-              const suggested = draftKnsName.endsWith(".kas")
-                ? draftKnsName
-                : draftKnsName + ".kas";
-              toast.info(
-                `No identity found. You can register '${suggested}' in the Developer Console.`,
-              );
-            } else {
-              toast.info(`No .kas identity found in recent transactions.`);
+        // Direct call - preserves user activation stack
+        const requestAccounts = async () => {
+          if (provider.requestAccounts) return await provider.requestAccounts();
+          if (provider.request) {
+            const methods = [
+              "kaspa_requestAccounts",
+              "requestAccounts",
+              "connect",
+            ];
+            for (const method of methods) {
+              try {
+                const res = await provider.request({ method });
+                if (res) return res;
+              } catch (e) {}
             }
           }
-        } catch (e) {
-          toast.dismiss(loadingToast);
-          console.error(e);
-          toast.error("Failed to query Kaspa ledger.");
+          if (provider.enable) return await provider.enable();
+          if (provider.connect) return await provider.connect();
+          throw new Error("No connection method found");
+        };
+
+        accounts = await requestAccounts();
+        console.log(`[Wallet] Received accounts:`, accounts);
+
+        if (typeof accounts === "string") {
+          accounts = [accounts];
         }
-      } else {
+
+        if (accounts && accounts.length > 0) {
+          connectedAddress = accounts[0];
+          walletName =
+            type === "kasware"
+              ? "KasWare"
+              : type === "kastle"
+                ? "Kastle"
+                : "Kasperia";
+          localStorage.setItem("kaspa_wallet_type", type);
+        } else {
+          setWalletState("idle");
+          return;
+        }
+      } catch (e: any) {
+        console.error("[Wallet Connection Error]:", e);
         setWalletState("idle");
+        toast.error(
+          `Failed to connect ${type} wallet: ${e?.message || "Unknown error"}. Check console for details.`,
+        );
+        return;
       }
-    } catch (e: any) {
-      console.error("[Wallet Connection Error]:", e);
-      setWalletState("idle");
-      toast.error(
-        `Failed to connect ${type} wallet: ${e?.message || "Unknown error"}. Check console for details.`,
+    }
+
+    if (connectedAddress) {
+      toast.success(`${walletName} connected successfully!`);
+      setWalletAddress(connectedAddress);
+      setWalletState("connected");
+      localStorage.setItem("kaspstore_wallet_address", connectedAddress);
+
+      const loadingToast = toast.loading(
+        `Scanning Kaspa Ledger for KNS identity...`,
       );
+
+      try {
+        // Bypass cache during manual connection to ensure fresh data
+        const knsNameFromLedger = await resolveNativeKNS(
+          connectedAddress,
+          true,
+        );
+        toast.dismiss(loadingToast);
+
+        if (knsNameFromLedger) {
+          setKnsName(knsNameFromLedger);
+          localStorage.setItem("kaspstore_kns_name", knsNameFromLedger);
+          toast.success(`Verified KNS Identity: ${knsNameFromLedger}`);
+        } else {
+          setKnsName(null);
+          localStorage.removeItem("kaspstore_kns_name");
+          if (draftKnsName) {
+            const suggested = draftKnsName.endsWith(".kas")
+              ? draftKnsName
+              : draftKnsName + ".kas";
+            toast.info(
+              `No identity found. You can register '${suggested}' in the Developer Console.`,
+            );
+          } else {
+            toast.info(`No .kas identity found in recent transactions.`);
+          }
+        }
+      } catch (e) {
+        toast.dismiss(loadingToast);
+        console.error(e);
+        toast.error("Failed to query Kaspa ledger.");
+      }
     }
   };
 

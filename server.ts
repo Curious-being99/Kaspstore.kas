@@ -249,45 +249,64 @@ async function startServer() {
     // Multi-gateway fallback logic
     const gateways = [
       "https://api.kaspa.org",
+      "https://kaspa-api.kaspa.org",
       "https://mainnet-api.kaspanet.io",
+      "https://mainnet.kaspa-api.io",
     ];
 
+    // Try gateways with a staggered start or sequential fallback with higher resilience
     for (const gateway of gateways) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s per gateway
+        const timeoutId = setTimeout(() => controller.abort(), 25000); // Increased to 25s for slow nodes
 
         const headers = {
-          "User-Agent": "Kaspstore.kas/1.0",
+          "User-Agent": "Kaspstore.kas/1.1",
           Accept: "application/json",
         };
 
         const fetchWithTimeout = async (url: string) => {
-          const res = await fetch(gateway + url, {
-            headers,
-            signal: controller.signal,
-          });
-          if (!res.ok) throw new Error(`Status ${res.status}`);
-          return await res.json();
+          try {
+            const res = await fetch(gateway + url, {
+              headers,
+              signal: controller.signal,
+            });
+            if (!res.ok) {
+              console.warn(`[Proxy] Gateway ${gateway}${url} returned status ${res.status}`);
+              return null;
+            }
+            return await res.json();
+          } catch (e: any) {
+            console.warn(`[Proxy] Fetch error from ${gateway}${url}: ${e.message}`);
+            return null;
+          }
         };
 
-        const [dagData, kaspadData] = await Promise.all([
-          fetchWithTimeout("/info/blockdag"),
-          fetchWithTimeout("/info/kaspad"),
-        ]);
+        // Fetch essential data. We tolerate missing kaspadData if dagData exists.
+        const dagData = await fetchWithTimeout("/info/blockdag");
+        if (!dagData) {
+           clearTimeout(timeoutId);
+           continue; 
+        }
 
+        const kaspadData = await fetchWithTimeout("/info/kaspad");
         clearTimeout(timeoutId);
 
         if (dagData) {
           const mempoolSize =
             kaspadData?.mempoolSize || cachedNetworkInfo?.mempoolSize || "0";
-          cachedNetworkInfo = { ...dagData, mempoolSize };
+          cachedNetworkInfo = { 
+            ...dagData, 
+            mempoolSize,
+            _gateway: gateway, // For debugging
+            _timestamp: Date.now()
+          };
           lastCacheTime = Date.now();
           console.log(`[Proxy] Successfully fetched from ${gateway}`);
           return res.json(cachedNetworkInfo);
         }
       } catch (error: any) {
-        console.warn(`[Proxy] Gateway ${gateway} failed:`, error.message);
+        console.warn(`[Proxy] Gateway loop failed for ${gateway}:`, error.message);
       }
     }
 
@@ -311,14 +330,15 @@ async function startServer() {
     // KNS redundant gateways
     const gateways = [
       "https://api.knsdomains.org/v1",
-      "https://kns-api.kaspanet.io/v1", // Fallback if exists
+      "https://api-kns.kaspa.org/v1",
+      "https://kns-api.kaspanet.io/v1",
     ];
 
     for (const gateway of gateways) {
       const url = `${gateway}/${apiPath}${query ? "?" + query : ""}`;
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s for KNS
         const response = await fetch(url, { signal: controller.signal });
         clearTimeout(timeoutId);
 
@@ -326,9 +346,15 @@ async function startServer() {
           const data = await response.json();
           return res.json(data);
         }
-        console.warn(
-          `[Proxy] KNS Gateway ${gateway} returned ${response.status}`,
-        );
+        
+        if (response.status === 404) {
+           // If it's a 404 from the primary, it might be real (e.g. domain not found)
+           // but we still check others just in case one indexer is out of sync
+           const data = await response.json();
+           console.log(`[Proxy] KNS 404 from ${gateway}, continuing check...`);
+        } else {
+           console.warn(`[Proxy] KNS Gateway ${gateway} returned ${response.status}`);
+        }
       } catch (error: any) {
         console.warn(`[Proxy] KNS Gateway ${gateway} failed:`, error.message);
       }
