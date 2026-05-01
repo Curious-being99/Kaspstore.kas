@@ -58,6 +58,7 @@ import {
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Toaster, toast } from "sonner";
+import { QRCodeCanvas } from "qrcode.react";
 import { AppService } from "./lib/appService";
 import { resolveNativeKNS } from "./lib/knsResolver";
 import { KnsService, KNS_REGISTRY_ADDRESS } from "./lib/knsService";
@@ -257,7 +258,6 @@ const NativeKaspaConnectButton = ({
           <LogOut
             size={14}
             className="opacity-70 group-hover:block"
-            title="Disconnect Wallet"
           />
           <span className="truncate max-w-[120px]">{accountName}</span>
         </div>
@@ -488,10 +488,12 @@ const WalletSelectionModal = ({
   isOpen,
   onClose,
   onSelect,
+  onSelectMobileSession,
 }: {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (type: "kasware" | "kasperia" | "kastle" | "manual") => void;
+  onSelectMobileSession: (id: string) => void;
 }) => {
   const [availableWallets, setAvailableWallets] = useState({
     kasware: !!getWalletProvider("kasware"),
@@ -499,14 +501,23 @@ const WalletSelectionModal = ({
     kasperia: !!getWalletProvider("kasperia"),
   });
   const [showManualInput, setShowManualInput] = useState(false);
+  const [showMobileQR, setShowMobileQR] = useState(false);
   const [manualAddress, setManualAddress] = useState("");
+  const [relaySessionId, setRelaySessionId] = useState("");
+
+  const generateSession = () => {
+    const id = Math.random().toString(36).substring(2, 10);
+    setRelaySessionId(id);
+    onSelectMobileSession(id);
+    setShowMobileQR(true);
+  };
 
   useEffect(() => {
     if (!isOpen) return;
-    if (isOpen) {
-      setShowManualInput(false);
-      setManualAddress("");
-    }
+
+    setShowManualInput(false);
+    setShowMobileQR(false);
+    setManualAddress("");
 
     // Check periodically in case extension injects late
     const interval = setInterval(() => {
@@ -580,7 +591,7 @@ const WalletSelectionModal = ({
               </div>
 
               <div className="space-y-2">
-                {!showManualInput ? (
+                {!showManualInput && !showMobileQR ? (
                   <>
                     {wallets.map((wallet) => (
                       <button
@@ -616,7 +627,28 @@ const WalletSelectionModal = ({
                         )}
                       </button>
                     ))}
-                    <div className="pt-4 mt-4 border-t border-white/5">
+                    <div className="pt-4 mt-4 border-t border-white/5 space-y-2">
+                      <button
+                        onClick={() => generateSession()}
+                        className="w-full flex items-center gap-5 p-4 rounded-[2rem] hover:bg-white/5 transition-all text-left group"
+                      >
+                        <div className="w-12 h-12 bg-indigo-900/30 rounded-[14px] flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
+                          <Smartphone size={20} className="text-indigo-400" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="text-xl font-bold text-white tracking-tight font-mono">
+                            Scan with Mobile
+                          </h4>
+                          <p className="text-[10px] text-indigo-500 font-bold uppercase tracking-widest mt-0.5">
+                            Connect Kaspium / KasWare Mobile
+                          </p>
+                        </div>
+                        <ChevronRight
+                          size={16}
+                          className="text-slate-700 group-hover:text-kaspa transition-colors"
+                        />
+                      </button>
+
                       <button
                         onClick={() => setShowManualInput(true)}
                         className="w-full flex items-center gap-5 p-4 rounded-[2rem] hover:bg-white/5 transition-all text-left group"
@@ -639,6 +671,39 @@ const WalletSelectionModal = ({
                       </button>
                     </div>
                   </>
+                ) : showMobileQR ? (
+                  <div className="space-y-4 pt-2 text-center">
+                    <button 
+                      onClick={() => window.open(`${window.location.origin}${window.location.pathname}?sid=${relaySessionId}`, '_blank')}
+                      className="relative aspect-square w-full bg-white rounded-3xl overflow-hidden p-6 flex items-center justify-center border-4 border-kaspa group cursor-pointer hover:border-white transition-all"
+                    >
+                      <QRCodeCanvas
+                        value={`${window.location.origin}${window.location.pathname}?sid=${relaySessionId}`}
+                        size={512}
+                        level="H"
+                        includeMargin={false}
+                        className="w-full h-auto group-hover:opacity-10 transition-opacity"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity flex-col gap-2">
+                        <ExternalLink size={32} className="text-black" />
+                        <span className="text-black font-black text-[10px] uppercase tracking-widest">Open in new tab</span>
+                      </div>
+                    </button>
+                    <div>
+                      <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1">
+                        Scan with your phone
+                      </p>
+                      <p className="text-[10px] text-slate-500 max-w-[200px] mx-auto leading-relaxed">
+                        This opens Kaspstore on your mobile browser where you can link your native wallet.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowMobileQR(false)}
+                      className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-bold text-xs uppercase tracking-widest transition-colors"
+                    >
+                      Back to Selection
+                    </button>
+                  </div>
                 ) : (
                   <div className="space-y-4 pt-2">
                     <div className="bg-slate-900 border border-white/10 rounded-2xl p-4">
@@ -649,7 +714,7 @@ const WalletSelectionModal = ({
                         autoFocus
                         type="text"
                         value={manualAddress}
-                        onChange={(e) => setManualAddress(e.target.value)}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setManualAddress(e.target.value)}
                         placeholder="kaspa:qq..."
                         className="w-full bg-transparent border-none text-white font-mono text-sm focus:ring-0 p-0 placeholder:text-slate-700 outline-none"
                       />
@@ -2707,6 +2772,7 @@ const DeveloperPortal = ({
   const [ipfsHash, setIpfsHash] = useState("");
   const [appDownloadUrl, setAppDownloadUrl] = useState("");
   const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
+  const [isAlreadyMine, setIsAlreadyMine] = useState(false);
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
 
   useEffect(() => {
@@ -2714,11 +2780,16 @@ const DeveloperPortal = ({
       const validation = KnsService.validateName(draftKnsName);
       if (validation.valid) {
         setIsCheckingAvailability(true);
-        const available = await KnsIndexer.checkAvailability(draftKnsName);
+        const owner = await KnsIndexer.resolve(draftKnsName);
+        const available = !owner;
+        const alreadyMine = owner === walletAddress;
+        
         setIsAvailable(available);
+        setIsAlreadyMine(alreadyMine);
         setIsCheckingAvailability(false);
       } else {
         setIsAvailable(null);
+        setIsAlreadyMine(false);
       }
     };
 
@@ -2894,19 +2965,21 @@ const DeveloperPortal = ({
                 {draftKnsName && (
                   <div className="flex justify-between items-center px-1">
                     <span
-                      className={`text-[9px] font-bold uppercase ${validation.valid ? (isCheckingAvailability ? "text-slate-500" : isAvailable ? "text-kaspa" : "text-red-400") : "text-red-400 font-medium"}`}
+                      className={`text-[9px] font-bold uppercase ${validation.valid ? (isCheckingAvailability ? "text-slate-500" : (isAvailable || isAlreadyMine) ? "text-kaspa" : "text-red-400") : "text-red-400 font-medium"}`}
                     >
                       {validation.valid
                         ? isCheckingAvailability
                           ? "Checking..."
-                          : isAvailable
-                            ? "Available"
-                            : "Already Taken"
+                          : isAlreadyMine
+                            ? "Already Yours"
+                            : isAvailable
+                              ? "Available"
+                              : "Already Taken"
                         : validation.error}
                     </span>
-                    {validation.valid && isAvailable && (
+                    {validation.valid && (isAvailable || isAlreadyMine) && (
                       <span className="text-[9px] text-kaspa font-bold uppercase">
-                        Estimated Fee: {cost} KAS
+                        Estimated Fee: {isAlreadyMine ? "0 (Gas Only)" : `${cost} KAS`}
                       </span>
                     )}
                   </div>
@@ -2930,7 +3003,7 @@ const DeveloperPortal = ({
                   walletState === "signing" ||
                   walletState === "success" ||
                   !validation.valid ||
-                  isAvailable === false ||
+                  (isAvailable === false && !isAlreadyMine) ||
                   isCheckingAvailability
                 }
                 className={`w-full font-bold uppercase tracking-widest text-xs px-6 py-4 rounded-xl transition-all flex items-center justify-center gap-2 ${
@@ -2938,7 +3011,7 @@ const DeveloperPortal = ({
                     ? "bg-green-500 text-white"
                     : walletState === "signing"
                       ? "bg-kaspa/80 text-black animate-pulse"
-                      : validation.valid && isAvailable
+                      : (validation.valid && (isAvailable || isAlreadyMine))
                         ? "bg-kaspa text-black hover:bg-white active:scale-95"
                         : "bg-slate-800 text-slate-600 cursor-not-allowed"
                 } disabled:cursor-not-allowed`}
@@ -2950,7 +3023,7 @@ const DeveloperPortal = ({
                 ) : walletState === "signing" ? (
                   "Checking Availability & Inscribing..."
                 ) : (
-                  `Register ${draftKnsName || "Identity"}`
+                  `${isAlreadyMine ? "Verify & Link" : "Register"} ${draftKnsName || "Identity"}`
                 )}
               </button>
             </div>
@@ -3805,7 +3878,7 @@ const DeveloperPortal = ({
 
                                 // Then upload
                                 const url = await uploadToEverland(file);
-                                if (url) setAppDownloadUrl(url);
+                                if (url) setAppDownloadUrl(url as string);
                               }
                             }}
                           />
@@ -3978,7 +4051,7 @@ const DeveloperPortal = ({
                               const file = e.target.files?.[0];
                               if (file) {
                                 const url = await uploadToEverland(file);
-                                if (url) setAppIcon(url);
+                                if (url) setAppIcon(url as string);
                               }
                             }}
                           />
@@ -4872,6 +4945,16 @@ export default function App() {
   const [knsName, setKnsName] = useState<string | null>(() =>
     localStorage.getItem("kaspstore_kns_name"),
   );
+  const [sessionId, setSessionId] = useState<string | null>(() => 
+    localStorage.getItem("kaspstore_relay_session_id")
+  );
+  const [isPollingSession, setIsPollingSession] = useState(false);
+  const [isMobileRelay, setIsMobileRelay] = useState(() => 
+    localStorage.getItem("kaspa_wallet_type") === "mobile-relay"
+  );
+  const [remoteRequest, setRemoteRequest] = useState<any>(null);
+  const [remoteResult, setRemoteResult] = useState<any>(null);
+  const [isRelaySigning, setIsRelaySigning] = useState(false);
   const [draftKnsName, setDraftKnsName] = useState("");
   const [activeNodes, setActiveNodes] = useState(1842);
   const [indexCycle, setIndexCycle] = useState(85.4);
@@ -4921,7 +5004,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // Simulated Local Identity based on Wallet
+    // Identity resolution based on Wallet
     if (walletAddress) {
       setUser({ uid: walletAddress, displayName: knsName || "Kaspian" } as any);
     } else {
@@ -4929,6 +5012,186 @@ export default function App() {
     }
     setLoading(false);
   }, [walletAddress, knsName]);
+
+  // --- SESSION RELAY LOGIC (Sync from Mobile to Desktop) ---
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sid = params.get("sid");
+    if (!sid) return;
+
+    // Persist session ID on mobile
+    if (sid && !sessionId) {
+      setSessionId(sid);
+      localStorage.setItem("kaspstore_relay_session_id", sid);
+    }
+
+    // 1. Sync connection info if we just connected
+    if (walletAddress && walletState === "connected") {
+      const syncWithDesktop = async () => {
+        try {
+          await fetch(`/api/session/${sid}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ address: walletAddress, kns: knsName }),
+          });
+        } catch (e) {
+          console.error("Sync error:", e);
+        }
+      };
+      syncWithDesktop();
+
+      // 2. Poll for signing requests
+      const interval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/relay/${sid}/request`);
+          if (res.ok) {
+            const req = await res.json();
+            setRemoteRequest(req);
+            toast.info("Signature Request Received!", {
+              description: `Request to sign for ${req.kns}`
+            });
+          }
+        } catch (e) {}
+      }, 2000);
+      return () => clearInterval(interval);
+    }
+  }, [walletAddress, walletState, knsName, sessionId]);
+
+  // Desktop: Poll for when mobile links its wallet
+  useEffect(() => {
+    if (isPollingSession && sessionId) {
+      const interval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/session/${sessionId}`);
+          if (res.ok) {
+            const data = await res.json();
+            setWalletAddress(data.address);
+            setWalletState("connected");
+            setKnsName(data.kns || null);
+            setIsMobileRelay(true);
+            localStorage.setItem("kaspa_wallet_type", "mobile-relay");
+            localStorage.setItem("kaspstore_relay_session_id", sessionId);
+            localStorage.setItem("kaspstore_wallet_address", data.address);
+            if (data.kns) localStorage.setItem("kaspstore_kns_name", data.kns);
+            setIsPollingSession(false);
+            toast.success("Mobile Wallet Linked!");
+          }
+        } catch (e) {}
+      }, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [isPollingSession, sessionId]);
+
+  const handleMobileRemoteSign = async () => {
+    if (!remoteRequest || !sessionId) return;
+    setIsRelaySigning(true);
+    try {
+      const walletType = localStorage.getItem("kaspa_wallet_type") || "kasware";
+      const provider = getWalletProvider(walletType);
+      if (!provider) throw new Error("Wallet not found on mobile");
+
+      let txId: string;
+      if (provider.sendKaspa) {
+        txId = await provider.sendKaspa(remoteRequest.to, remoteRequest.amount);
+      } else if (provider.sendTransaction) {
+        txId = await provider.sendTransaction({
+          to: remoteRequest.to,
+          amount: remoteRequest.amount,
+          data: remoteRequest.data
+        });
+      } else {
+        throw new Error("Wallet doesn't support generic signing");
+      }
+
+      await fetch(`/api/relay/${sessionId}/response`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ txId })
+      });
+      setRemoteRequest(null);
+      toast.success("Transaction Signed & Sent!");
+    } catch (e: any) {
+      toast.error("Signing failed", { description: e.message });
+      await fetch(`/api/relay/${sessionId}/response`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error: e.message })
+      });
+    } finally {
+      setIsRelaySigning(false);
+    }
+  };
+
+  const MobileRelayView = () => (
+    <div className="fixed inset-0 z-[1000] bg-[#0c111d] flex flex-col items-center justify-center p-6 text-center">
+      <div className="mb-8">
+        <div className="w-20 h-20 bg-indigo-900/30 rounded-3xl flex items-center justify-center mx-auto mb-4 border border-indigo-500/20">
+          <Smartphone size={40} className="text-indigo-400" />
+        </div>
+        <h1 className="text-3xl font-black text-white tracking-tighter mb-2">Mobile Relay</h1>
+        <p className="text-slate-400 text-sm max-w-[280px] mx-auto">
+          Connected and acting as a remote signer for your desktop session.
+        </p>
+      </div>
+
+      <div className="w-full space-y-4 max-w-sm">
+        {walletState !== "connected" ? (
+          <button
+            onClick={() => setShowWalletModal(true)}
+            className="w-full py-5 bg-kaspa text-black font-black text-lg rounded-2xl shadow-xl active:scale-95 transition-transform"
+          >
+            Connect Mobile Wallet
+          </button>
+        ) : (
+          <div className="bg-slate-900 border border-indigo-500/20 rounded-2xl p-6 text-left">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
+              <span className="text-xs font-mono text-green-500 uppercase font-black">Active Session</span>
+            </div>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Status</p>
+            <p className="text-white font-mono text-sm break-all font-bold">
+              {walletAddress}
+            </p>
+          </div>
+        )}
+
+        <AnimatePresence>
+          {remoteRequest && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="bg-indigo-600 rounded-2xl p-6 text-left shadow-2xl relative overflow-hidden"
+            >
+              <div className="relative z-10">
+                <h4 className="text-white font-black text-xl mb-1">Sign Request</h4>
+                <p className="text-white/70 text-xs mb-4">Registering {remoteRequest.kns}</p>
+                
+                <div className="bg-black/20 rounded-xl p-3 mb-6">
+                  <div className="flex justify-between items-center text-white">
+                    <span className="text-[10px] font-bold uppercase opacity-60">Amount</span>
+                    <span className="font-mono font-black">{remoteRequest.cost} KAS</span>
+                  </div>
+                </div>
+
+                <button
+                  disabled={isRelaySigning}
+                  onClick={handleMobileRemoteSign}
+                  className="w-full py-4 bg-white text-indigo-600 font-black rounded-xl shadow-lg active:scale-95 transition-all disabled:opacity-50"
+                >
+                  {isRelaySigning ? "Signing..." : "Sign & Send Transaction"}
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+      
+      <p className="mt-auto text-[10px] text-slate-600 font-bold uppercase tracking-[0.2em] pt-8">
+        Keep this page open during your session
+      </p>
+    </div>
+  );
 
   const [lastAppDoc, setLastAppDoc] = useState<any>(null);
   const [hasMoreApps, setHasMoreApps] = useState(true);
@@ -5073,20 +5336,22 @@ export default function App() {
         return;
       }
 
-      // Verify availability one last time before purchase
-      const isAvailableNow = await KnsIndexer.checkAvailability(finalKns);
-      if (!isAvailableNow) {
-        toast.error(`Domain '${finalKns}' was just taken or is unavailable.`);
+      // Verify availability and ownership
+      const owner = await KnsIndexer.resolve(finalKns);
+      const isAlreadyMine = owner === walletAddress;
+
+      if (owner && !isAlreadyMine) {
+        toast.error(`Domain '${finalKns}' is owned by another address: ${owner}`);
         return;
       }
 
-      const cost = KnsService.calculateCost(finalKns);
-      const sompis = Math.round(cost * 100000000); // 1 KAS = 10^8 Sompis
+      const cost = isAlreadyMine ? 0.00000001 : KnsService.calculateCost(finalKns); // 1 Sompi if already mine
+      const sompis = Math.round(cost * 100000000); 
 
       setWalletState("signing");
       const loadingToast = toast.loading(
-        `Initiating purchase for ${finalKns}...`,
-        { description: `Sending ${cost} KAS to registry via Direct Node` },
+        isAlreadyMine ? `Verifying ownership of ${finalKns}...` : `Initiating purchase for ${finalKns}...`,
+        { description: isAlreadyMine ? "Sending 1 Sompi verification" : `Sending ${cost} KAS to registry via Direct Node` },
       );
 
       // 1. Prepare Inscripion Metadata for ON-CHAIN indexers
@@ -5096,7 +5361,44 @@ export default function App() {
       // 2. Execute Transaction
       let txId: string | null = null;
       try {
-        if (provider.sendKaspa) {
+        if (isMobileRelay && sessionId) {
+          // Push to Relay
+          setWalletState("signing");
+          const req = {
+            type: "sign-tx",
+            to: KNS_REGISTRY_ADDRESS,
+            amount: sompis,
+            data: inscriptionJson,
+            kns: finalKns,
+            cost: isAlreadyMine ? "0 (Gas Only)" : cost.toString()
+          };
+          
+          await fetch(`/api/relay/${sessionId}/request`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(req)
+          });
+
+          toast.info("Request sent to your phone!", {
+            description: "Please check your mobile screen to sign."
+          });
+
+          // Wait for response
+          let attempts = 0;
+          while (attempts < 60) { // 3 minutes timeout
+             const resp = await fetch(`/api/relay/${sessionId}/response`);
+             if (resp.ok) {
+                const data = await resp.json();
+                if (data.error) throw new Error(data.error);
+                txId = data.txId;
+                break;
+             }
+             await new Promise(r => setTimeout(r, 3000));
+             attempts++;
+          }
+          if (!txId) throw new Error("Transaction request timed out or was rejected.");
+
+        } else if (provider.sendKaspa) {
           // KasWare direct method - we attach the metadata via additional mechanisms if available,
           // but standard KNS works by sending to registry address with sufficient funds.
           // Modern indexers look for the FIRST tx to registry with that amount and message.
@@ -5351,9 +5653,7 @@ export default function App() {
         category === "all" ||
         (category === "top" && app.rating >= 4.5) ||
         (category === "foryou" &&
-          (app.rating >= 4.0 ||
-            (typeof app.reviewsCount === "string" &&
-              app.reviewsCount.includes("M")))) ||
+          (app.rating >= 4.0 || app.reviewsCount >= 1000000)) ||
         app.category.toLowerCase() === category.toLowerCase() ||
         (app.subCategory &&
           app.subCategory.toLowerCase() === category.toLowerCase());
@@ -5362,9 +5662,7 @@ export default function App() {
         activeBrowseSubTab === "categories" ||
         activeBrowseSubTab === "foryou" ||
         (activeBrowseSubTab === "topcharts" &&
-          (app.rating >= 4.5 ||
-            (typeof app.downloads === "string" &&
-              app.downloads.includes("B")))) ||
+          (app.rating >= 4.5 || app.downloads >= 1000000000)) ||
         (activeBrowseSubTab === "kids" && app.isForKids) ||
         (activeBrowseSubTab === "premium" && app.isPremium);
 
@@ -5408,6 +5706,25 @@ export default function App() {
     const timer = setTimeout(() => setIsSyncing(false), 2400);
     return () => clearTimeout(timer);
   }, [category, searchQuery]);
+
+  const isMobileSession = useMemo(() => {
+    return new URLSearchParams(window.location.search).has("sid");
+  }, []);
+
+  if (isMobileSession) {
+    return (
+      <div className="min-h-screen bg-[#0c111d] text-white font-sans selection:bg-kaspa/30">
+        <MobileRelayView />
+        <WalletSelectionModal
+          isOpen={showWalletModal}
+          onClose={() => setShowWalletModal(false)}
+          onSelect={connectWalletByType}
+          onSelectMobileSession={() => {}}
+        />
+        <Toaster theme="dark" position="top-center" richColors />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black font-sans text-slate-200 selection:bg-kaspa/30 selection:text-kaspa-light">
@@ -6468,6 +6785,10 @@ export default function App() {
         isOpen={showWalletModal}
         onClose={() => setShowWalletModal(false)}
         onSelect={connectWalletByType}
+        onSelectMobileSession={(id) => {
+          setSessionId(id);
+          setIsPollingSession(true);
+        }}
       />
 
       <AnimatePresence>

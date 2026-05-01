@@ -99,6 +99,13 @@ export const KnsIndexer = {
   /**
    * Resolves a domain to its owner address
    */
+  async resolve(domain: string): Promise<string | null> {
+    return this.resolveDomain(domain);
+  },
+
+  /**
+   * Resolves a domain to its owner address (Legacy name)
+   */
   async resolveDomain(domain: string): Promise<string | null> {
     try {
       const name = domain.toLowerCase().endsWith('.kas') ? domain.toLowerCase() : `${domain.toLowerCase()}.kas`;

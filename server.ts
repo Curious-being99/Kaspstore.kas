@@ -257,40 +257,33 @@ async function startServer() {
     // Try gateways with a staggered start or sequential fallback with higher resilience
     for (const gateway of gateways) {
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 25000); // Increased to 25s for slow nodes
-
         const headers = {
           "User-Agent": "Kaspstore.kas/1.1",
           Accept: "application/json",
         };
 
-        const fetchWithTimeout = async (url: string) => {
+        // Fetch essential data with independent signals
+        const fetchWithSingleTimeout = async (url: string, ms: number) => {
+          const subController = new AbortController();
+          const subTimeoutId = setTimeout(() => subController.abort(), ms);
           try {
             const res = await fetch(gateway + url, {
               headers,
-              signal: controller.signal,
+              signal: subController.signal,
             });
-            if (!res.ok) {
-              console.warn(`[Proxy] Gateway ${gateway}${url} returned status ${res.status}`);
-              return null;
-            }
+            clearTimeout(subTimeoutId);
+            if (!res.ok) return null;
             return await res.json();
-          } catch (e: any) {
-            console.warn(`[Proxy] Fetch error from ${gateway}${url}: ${e.message}`);
+          } catch (e) {
+            clearTimeout(subTimeoutId);
             return null;
           }
         };
 
-        // Fetch essential data. We tolerate missing kaspadData if dagData exists.
-        const dagData = await fetchWithTimeout("/info/blockdag");
-        if (!dagData) {
-           clearTimeout(timeoutId);
-           continue; 
-        }
+        const dagData = await fetchWithSingleTimeout("/info/blockdag", 15000);
+        if (!dagData) continue;
 
-        const kaspadData = await fetchWithTimeout("/info/kaspad");
-        clearTimeout(timeoutId);
+        const kaspadData = await fetchWithSingleTimeout("/info/kaspad", 15000);
 
         if (dagData) {
           const mempoolSize =
@@ -417,7 +410,60 @@ async function startServer() {
     serveStaticFiles(app);
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  // --- SESSION RELAY FOR MOBILE CONNECT ---
+const sessions = new Map<string, { address: string; kns?: string | null }>();
+const requests = new Map<string, any>();
+const responses = new Map<string, any>();
+
+app.post("/api/session/:id", express.json(), (req, res) => {
+  const { id } = req.params;
+  const { address, kns } = req.body;
+  if (!address) return res.status(400).json({ error: "Address required" });
+  
+  sessions.set(id, { address, kns });
+  console.log(`[Relay] Session ${id} linked to ${address}`);
+  setTimeout(() => sessions.delete(id), 10 * 60 * 1000); // 10m
+  res.json({ success: true });
+});
+
+app.get("/api/session/:id", (req, res) => {
+  const { id } = req.params;
+  const data = sessions.get(id);
+  if (data) return res.json(data);
+  res.status(404).json({ error: "No session" });
+});
+
+// Transaction Relay
+app.post("/api/relay/:id/request", express.json(), (req, res) => {
+  requests.set(req.params.id, req.body);
+  responses.delete(req.params.id); // Clear old responses
+  res.json({ success: true });
+});
+
+app.get("/api/relay/:id/request", (req, res) => {
+  const reqData = requests.get(req.params.id);
+  if (reqData) {
+    requests.delete(req.params.id);
+    return res.json(reqData);
+  }
+  res.status(404).send();
+});
+
+app.post("/api/relay/:id/response", express.json(), (req, res) => {
+  responses.set(req.params.id, req.body);
+  res.json({ success: true });
+});
+
+app.get("/api/relay/:id/response", (req, res) => {
+  const respData = responses.get(req.params.id);
+  if (respData) {
+    responses.delete(req.params.id);
+    return res.json(respData);
+  }
+  res.status(404).send();
+});
+
+app.listen(PORT, "0.0.0.0", () => {
     console.log(`Kaspstore.kas Protocol running on http://localhost:${PORT}`);
   });
 }
