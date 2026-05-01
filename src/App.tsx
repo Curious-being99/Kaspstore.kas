@@ -690,11 +690,11 @@ const WalletSelectionModal = ({
                       </div>
                     </button>
                     <div>
-                      <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1">
-                        Scan with your phone
+                      <p className="text-xs text-kaspa font-black uppercase tracking-widest mb-1 animate-pulse">
+                        Scan with your phone's camera
                       </p>
-                      <p className="text-[10px] text-slate-500 max-w-[200px] mx-auto leading-relaxed">
-                        This opens Kaspstore on your mobile browser where you can link your native wallet.
+                      <p className="text-[10px] text-slate-500 max-w-[240px] mx-auto leading-relaxed font-bold uppercase tracking-tighter">
+                        Do not use the scanner inside your wallet app. Use your phone's native camera to open the link.
                       </p>
                     </div>
                     <button
@@ -5013,14 +5013,14 @@ export default function App() {
     setLoading(false);
   }, [walletAddress, knsName]);
 
-  // --- SESSION RELAY LOGIC (Sync from Mobile to Desktop) ---
+  // Mobile Request Polling
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const sid = params.get("sid");
     if (!sid) return;
 
     // Persist session ID on mobile
-    if (sid && !sessionId) {
+    if (!sessionId) {
       setSessionId(sid);
       localStorage.setItem("kaspstore_relay_session_id", sid);
     }
@@ -5034,25 +5034,42 @@ export default function App() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ address: walletAddress, kns: knsName }),
           });
+          toast.success("Desktop Session Linked!");
         } catch (e) {
           console.error("Sync error:", e);
         }
       };
       syncWithDesktop();
 
-      // 2. Poll for signing requests
+      // Clear any stale requests immediately upon linking
+      const checkInitial = async () => {
+        try {
+          const res = await fetch(`/api/relay/${sid}/request`);
+          if (res.ok) {
+            const req = await res.json();
+            setRemoteRequest(req);
+          }
+        } catch (e) {}
+      };
+      checkInitial();
+
+      // 2. Poll for signing requests (Phone listens for Desktop's "Sign" command)
       const interval = setInterval(async () => {
         try {
           const res = await fetch(`/api/relay/${sid}/request`);
           if (res.ok) {
             const req = await res.json();
             setRemoteRequest(req);
-            toast.info("Signature Request Received!", {
-              description: `Request to sign for ${req.kns}`
+            // Vibrate if supported
+            if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
+            toast.info("Signature Request!", {
+              description: `A transaction is waiting for your signature.`,
+              duration: 15000,
+              icon: <Zap className="text-kaspa" />
             });
           }
         } catch (e) {}
-      }, 2000);
+      }, 1200); // Very aggressive polling for mobile relay
       return () => clearInterval(interval);
     }
   }, [walletAddress, walletState, knsName, sessionId]);
@@ -5074,17 +5091,21 @@ export default function App() {
             localStorage.setItem("kaspstore_wallet_address", data.address);
             if (data.kns) localStorage.setItem("kaspstore_kns_name", data.kns);
             setIsPollingSession(false);
-            toast.success("Mobile Wallet Linked!");
+            toast.success("Mobile Wallet Connected!");
           }
         } catch (e) {}
-      }, 3000);
+      }, 2000);
       return () => clearInterval(interval);
     }
   }, [isPollingSession, sessionId]);
 
   const handleMobileRemoteSign = async () => {
-    if (!remoteRequest || !sessionId) return;
+    if (!remoteRequest || !sessionId) {
+      console.error("[Relay] Missing request or session", { remoteRequest, sessionId });
+      return;
+    }
     setIsRelaySigning(true);
+    const loadingToast = toast.loading("Confirm on your mobile wallet...");
     try {
       const walletType = localStorage.getItem("kaspa_wallet_type") || "kasware";
       const provider = getWalletProvider(walletType);
@@ -5119,77 +5140,145 @@ export default function App() {
       });
     } finally {
       setIsRelaySigning(false);
+      toast.dismiss(loadingToast);
     }
   };
 
   const MobileRelayView = () => (
-    <div className="fixed inset-0 z-[1000] bg-[#0c111d] flex flex-col items-center justify-center p-6 text-center">
-      <div className="mb-8">
-        <div className="w-20 h-20 bg-indigo-900/30 rounded-3xl flex items-center justify-center mx-auto mb-4 border border-indigo-500/20">
-          <Smartphone size={40} className="text-indigo-400" />
+    <div className="fixed inset-0 z-[1000] bg-[#0c111d] flex flex-col items-center justify-center p-6 text-center overflow-y-auto">
+      <div className="mb-8 mt-auto">
+        <div className="w-20 h-20 bg-kaspa/10 rounded-3xl flex items-center justify-center mx-auto mb-4 border border-kaspa/20 shadow-[0_0_40px_-10px_rgba(112,235,191,0.2)]">
+          <Smartphone size={40} className="text-kaspa" />
         </div>
-        <h1 className="text-3xl font-black text-white tracking-tighter mb-2">Mobile Relay</h1>
-        <p className="text-slate-400 text-sm max-w-[280px] mx-auto">
-          Connected and acting as a remote signer for your desktop session.
+        <h1 className="text-3xl font-black text-white tracking-tighter mb-2">Bridge Active</h1>
+        <p className="text-slate-400 text-sm max-w-[280px] mx-auto leading-relaxed">
+          Your phone is now acting as a secure remote signer for your computer.
         </p>
       </div>
 
-      <div className="w-full space-y-4 max-w-sm">
+      <div className="w-full space-y-4 max-w-sm mb-auto">
         {walletState !== "connected" ? (
-          <button
-            onClick={() => setShowWalletModal(true)}
-            className="w-full py-5 bg-kaspa text-black font-black text-lg rounded-2xl shadow-xl active:scale-95 transition-transform"
-          >
-            Connect Mobile Wallet
-          </button>
-        ) : (
-          <div className="bg-slate-900 border border-indigo-500/20 rounded-2xl p-6 text-left">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
-              <span className="text-xs font-mono text-green-500 uppercase font-black">Active Session</span>
-            </div>
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Status</p>
-            <p className="text-white font-mono text-sm break-all font-bold">
-              {walletAddress}
+          <div className="space-y-4">
+             <button
+              onClick={() => setShowWalletModal(true)}
+              className="w-full py-5 bg-kaspa text-black font-black text-lg rounded-2xl shadow-xl active:scale-95 transition-transform flex items-center justify-center gap-3"
+            >
+              <LogIn size={20} />
+              Connect Mobile Wallet
+            </button>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+              Standard Kaspa Wallets supported
             </p>
+          </div>
+        ) : (
+          <div className="relative group">
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-kaspa to-indigo-500 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
+            <div className="relative bg-[#0c111d]/90 border border-white/5 rounded-2xl p-6 text-left backdrop-blur-xl">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-2.5 h-2.5 bg-kaspa rounded-full animate-pulse shadow-[0_0_10px_rgba(112,235,191,0.5)]" />
+                  <span className="text-[10px] font-mono text-kaspa uppercase font-black tracking-widest">Ready to Sign</span>
+                </div>
+                {knsName && (
+                  <span className="bg-kaspa/10 text-kaspa text-[9px] font-black px-2 py-1 rounded-md border border-kaspa/20">
+                    {knsName}
+                  </span>
+                )}
+              </div>
+              <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest mb-1.5 opacity-60">Connected Address</p>
+              <p className="text-white font-mono text-xs break-all font-bold tracking-tight bg-black/20 p-3 rounded-xl border border-white/5">
+                {walletAddress}
+              </p>
+            </div>
           </div>
         )}
 
         <AnimatePresence>
           {remoteRequest && (
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="bg-indigo-600 rounded-2xl p-6 text-left shadow-2xl relative overflow-hidden"
+              initial={{ opacity: 0, scale: 0.9, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: -30 }}
+              className="fixed inset-x-4 bottom-8 z-[1100] max-w-sm mx-auto"
             >
-              <div className="relative z-10">
-                <h4 className="text-white font-black text-xl mb-1">Sign Request</h4>
-                <p className="text-white/70 text-xs mb-4">Registering {remoteRequest.kns}</p>
+              <div className="bg-indigo-600 rounded-[2.5rem] p-8 text-left shadow-[0_30px_60px_-12px_rgba(0,0,0,0.5)] relative overflow-hidden border border-white/10">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-2xl" />
+                <div className="absolute bottom-0 left-0 w-24 h-24 bg-kaspa/10 rounded-full -ml-12 -mb-12 blur-2xl" />
                 
-                <div className="bg-black/20 rounded-xl p-3 mb-6">
-                  <div className="flex justify-between items-center text-white">
-                    <span className="text-[10px] font-bold uppercase opacity-60">Amount</span>
-                    <span className="font-mono font-black">{remoteRequest.cost} KAS</span>
+                <div className="relative z-10">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                      <Zap size={20} className="text-white" />
+                    </div>
+                    <div>
+                      <h4 className="text-white font-black text-xl tracking-tight leading-none">Sign Transaction</h4>
+                      <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest mt-1">Registry Request</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 mb-8">
+                    <div className="bg-black/20 rounded-2xl p-4 border border-white/5">
+                      <p className="text-[9px] text-white/40 font-black uppercase tracking-[0.2em] mb-1">Target Identity</p>
+                      <p className="text-white font-black text-lg font-mono">{remoteRequest.kns}</p>
+                    </div>
+                    
+                    <div className="bg-black/20 rounded-2xl p-4 border border-white/5">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className="text-[9px] text-white/40 font-black uppercase tracking-[0.2em] mb-1">Network Fee</p>
+                          <p className="text-white font-black text-lg font-mono">{remoteRequest.cost} <span className="text-xs opacity-60">KAS</span></p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-3">
+                    <button
+                      disabled={isRelaySigning}
+                      onClick={handleMobileRemoteSign}
+                      className="w-full py-5 bg-white text-indigo-600 font-black text-lg rounded-2xl shadow-xl active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+                    >
+                      {isRelaySigning ? (
+                        <>
+                          <Loader2 size={24} className="animate-spin" />
+                          Signing...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle size={24} />
+                          Sign & Authorize
+                        </>
+                      )}
+                    </button>
+                    <button
+                      disabled={isRelaySigning}
+                      onClick={async () => {
+                        await fetch(`/api/relay/${sessionId}/response`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ error: "User rejected on phone" })
+                        });
+                        setRemoteRequest(null);
+                      }}
+                      className="w-full py-3 text-white/40 hover:text-white font-bold text-xs uppercase tracking-widest transition-colors flex items-center justify-center gap-2"
+                    >
+                      <X size={14} />
+                      Reject Request
+                    </button>
                   </div>
                 </div>
-
-                <button
-                  disabled={isRelaySigning}
-                  onClick={handleMobileRemoteSign}
-                  className="w-full py-4 bg-white text-indigo-600 font-black rounded-xl shadow-lg active:scale-95 transition-all disabled:opacity-50"
-                >
-                  {isRelaySigning ? "Signing..." : "Sign & Send Transaction"}
-                </button>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
       
-      <p className="mt-auto text-[10px] text-slate-600 font-bold uppercase tracking-[0.2em] pt-8">
-        Keep this page open during your session
-      </p>
+      <div className="mt-auto pt-8 flex items-center gap-3 pb-8">
+        <div className="w-1.5 h-1.5 bg-kaspa rounded-full animate-pulse" />
+        <p className="text-[10px] text-slate-600 font-bold uppercase tracking-[0.3em]">
+          End-to-End Encrypted Bridge
+        </p>
+      </div>
     </div>
   );
 
