@@ -71,9 +71,8 @@ import {
 declare global {
   interface Window {
     kasware?: any;
-    keperia?: any;
-    kaperia?: any;
     kasperia?: any;
+    kaperia?: any;
     kasper?: any;
     kaspa?: any;
     kaspaWallet?: any;
@@ -393,21 +392,31 @@ const Nav = ({
 const getWalletProvider = (type: string) => {
   console.log(`[Wallet] Getting provider for ${type}`);
   let provider = null;
-  
+
   const getFromWindow = (win: any) => {
     try {
-      if (type === "kasware") return win.kasware;
-      if (type === "keperia" || type === "kasperia") {
+      if (type === "kasware") return win.kasware || win.kaspa;
+      if (
+        type === "kasperia" ||
+        type === "kaperia" ||
+        type === "keperia"
+      ) {
         return (
           win.kasperia ||
-          win.keperia ||
           win.kaperia ||
+          win.keperia ||
           win.kaspa ||
           win.kasper ||
           win.kaspaWallet
         );
       }
-      if (type === "kastle") return win.kastle;
+      if (type === "kastle") return win.kastle || win.kaspa;
+
+      // Generic Kaspa fallback
+      if (win.kaspa && typeof win.kaspa.requestAccounts === "function")
+        return win.kaspa;
+      if (win.kasware && typeof win.kasware.requestAccounts === "function")
+        return win.kasware;
     } catch (e) {
       return null;
     }
@@ -481,12 +490,12 @@ const WalletSelectionModal = ({
 }: {
   isOpen: boolean;
   onClose: () => void;
-  onSelect: (type: "kasware" | "keperia" | "kastle") => void;
+  onSelect: (type: "kasware" | "kasperia" | "kastle") => void;
 }) => {
   const [availableWallets, setAvailableWallets] = useState({
     kasware: !!getWalletProvider("kasware"),
     kastle: !!getWalletProvider("kastle"),
-    keperia: !!getWalletProvider("keperia"),
+    kasperia: !!getWalletProvider("kasperia"),
   });
 
   useEffect(() => {
@@ -497,7 +506,7 @@ const WalletSelectionModal = ({
       setAvailableWallets({
         kasware: !!getWalletProvider("kasware"),
         kastle: !!getWalletProvider("kastle"),
-        keperia: !!getWalletProvider("keperia"),
+        kasperia: !!getWalletProvider("kasperia"),
       });
     }, 500);
 
@@ -520,11 +529,11 @@ const WalletSelectionModal = ({
       available: availableWallets.kastle,
     },
     {
-      id: "keperia",
+      id: "kasperia",
       name: "Kasperia",
       logo: KasperiaLogo,
       desc: "Secure Identity",
-      available: availableWallets.keperia,
+      available: availableWallets.kasperia,
     },
   ];
 
@@ -1378,11 +1387,15 @@ const AppDetailModal = ({
       if (provider) {
         const amountKAS = Number(app.kasPrice || 0);
         if (isNaN(amountKAS) || amountKAS <= 0) {
-           throw new Error("Invalid price for application.");
+          throw new Error("Invalid price for application.");
         }
-        const sompis = Math.round(amountKAS * 100000000); 
+        const sompis = Math.round(amountKAS * 100000000);
         // Fallback to a known format if developer ID is missing "kaspa:" prefix, or just use what we have
-        const targetAddress = (app.developerId?.startsWith("kaspa:") ? app.developerId : localStorage.getItem("kaspstore_wallet_address")) || "kaspa:qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkx9zhx6";
+        const targetAddress =
+          (app.developerId?.startsWith("kaspa:")
+            ? app.developerId
+            : localStorage.getItem("kaspstore_wallet_address")) ||
+          "kaspa:qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkx9zhx6";
         let txId = null;
 
         if (provider.sendKaspa) {
@@ -1390,18 +1403,18 @@ const AppDetailModal = ({
         } else if (provider.sendTransaction) {
           txId = await provider.sendTransaction({
             to: targetAddress,
-            amount: sompis
+            amount: sompis,
           });
         } else if (provider.request) {
           txId = await provider.request({
             method: "kaspa_sendKaspa",
             params: {
-               to: targetAddress,
-               amount: sompis
-            }
+              to: targetAddress,
+              amount: sompis,
+            },
           });
         } else {
-           throw new Error("Wallet provider doesn't support sending payments.");
+          throw new Error("Wallet provider doesn't support sending payments.");
         }
 
         if (txId) {
@@ -2785,8 +2798,9 @@ const DeveloperPortal = ({
               Establish KNS Identity
             </h3>
             <p className="text-slate-400 text-xs mb-8">
-              Kaspstore.kas requires a .kas domain to index your applications. Names
-              follow a length-based pricing model to ensure protocol fairness.
+              Kaspstore.kas requires a .kas domain to index your applications.
+              Names follow a length-based pricing model to ensure protocol
+              fairness.
             </p>
 
             <div className="w-full space-y-4">
@@ -3042,40 +3056,49 @@ const DeveloperPortal = ({
   const handleApplyUpdates = async () => {
     setPaymentStatus("pending");
     try {
-      const walletType = window.localStorage.getItem("kaspa_wallet_type") || "kasware";
+      const walletType =
+        window.localStorage.getItem("kaspa_wallet_type") || "kasware";
       const provider = getWalletProvider(walletType);
-      
+
       if (!provider) {
-         throw new Error("Wallet provider not found to sign update.");
+        throw new Error("Wallet provider not found to sign update.");
       }
 
       toast.info("Please sign the update request in your wallet...");
 
       // Simulate a signature request for the update payload
       const payloadString = JSON.stringify({
-         op: "update",
-         appId: editingApp.id,
-         version: editingApp.version,
-         timestamp: Date.now()
+        op: "update",
+        appId: editingApp.id,
+        version: editingApp.version,
+        timestamp: Date.now(),
       });
 
       let signature = null;
       if (provider.signMessage) {
-         signature = await provider.signMessage(payloadString, "utf8");
+        signature = await provider.signMessage(payloadString, "utf8");
       } else if (provider.request) {
-         try {
-           signature = await provider.request({ method: "kaspa_signMessage", params: { message: payloadString } });
-         } catch {
-            // some fallback
-           signature = await provider.request({ method: "signMessage", params: [payloadString] });
-         }
+        try {
+          signature = await provider.request({
+            method: "kaspa_signMessage",
+            params: { message: payloadString },
+          });
+        } catch {
+          // some fallback
+          signature = await provider.request({
+            method: "signMessage",
+            params: [payloadString],
+          });
+        }
       } else {
-         toast.warning("Wallet doesn't support signing, proceeding with fallback authentication.");
-         signature = "fallback-sig-" + Date.now();
+        toast.warning(
+          "Wallet doesn't support signing, proceeding with fallback authentication.",
+        );
+        signature = "fallback-sig-" + Date.now();
       }
 
       if (!signature) {
-         throw new Error("User rejected the signature request.");
+        throw new Error("User rejected the signature request.");
       }
 
       // 1. Update metadata first
@@ -3772,10 +3795,10 @@ const DeveloperPortal = ({
                         Self-Storage Architecture
                       </h4>
                       <p className="text-[10px] text-slate-400 leading-relaxed">
-                        Kaspstore.kas is a decentralized registry. You host your own
-                        binary package (on your server, GitHub, or local node).
-                        This ensures zero trade-offs on autonomy and prevents
-                        centralized platform "hanging" or censorship.
+                        Kaspstore.kas is a decentralized registry. You host your
+                        own binary package (on your server, GitHub, or local
+                        node). This ensures zero trade-offs on autonomy and
+                        prevents centralized platform "hanging" or censorship.
                       </p>
                     </div>
                   </div>
@@ -4278,7 +4301,11 @@ const DeveloperGuide = ({ onBack }: { onBack: () => void }) => {
             Kaspstore.kas <span className="text-kaspa">Sovereignty</span> Guide
           </h1>
           <p className="text-lg text-slate-400 leading-relaxed max-w-2xl">
-            Welcome to the future of application distribution. Kaspstore.kas is a global, permissionless registry anchored on the Kaspa GHOSTDAG, utilizing decentralized storage and AI to provide an ecosystem completely free of corporate censorship or centralized points of failure.
+            Welcome to the future of application distribution. Kaspstore.kas is
+            a global, permissionless registry anchored on the Kaspa GHOSTDAG,
+            utilizing decentralized storage and AI to provide an ecosystem
+            completely free of corporate censorship or centralized points of
+            failure.
           </p>
         </section>
 
@@ -4289,17 +4316,26 @@ const DeveloperGuide = ({ onBack }: { onBack: () => void }) => {
             </h3>
             <div className="space-y-4 text-sm text-slate-400 leading-relaxed">
               <p>
-                Kaspstore.kas operates as the decentralized &quot;Play Store&quot; of the Kaspa Network. It prevents de-platforming, avoids exorbitant 30% storefront fees, and enables peer-to-peer economic interaction between developers and users.
+                Kaspstore.kas operates as the decentralized &quot;Play
+                Store&quot; of the Kaspa Network. It prevents de-platforming,
+                avoids exorbitant 30% storefront fees, and enables peer-to-peer
+                economic interaction between developers and users.
               </p>
               <p>
-                By utilizing <span className="text-white font-bold">KNS (Kaspa Name Service)</span> and Kaspa Wallets (such as Kasware), identity remains entirely on-chain without requiring emails or passwords.
+                By utilizing{" "}
+                <span className="text-white font-bold">
+                  KNS (Kaspa Name Service)
+                </span>{" "}
+                and Kaspa Wallets (such as Kasware), identity remains entirely
+                on-chain without requiring emails or passwords.
               </p>
             </div>
           </div>
 
           <div className="space-y-6">
             <h3 className="text-xl font-bold text-white flex items-center gap-3">
-              <UploadCloud size={24} className="text-kaspa" /> 2. 4Everland Storage Network
+              <UploadCloud size={24} className="text-kaspa" /> 2. 4Everland
+              Storage Network
             </h3>
             <div className="space-y-4 text-sm text-slate-400 leading-relaxed">
               <p>
@@ -4307,52 +4343,93 @@ const DeveloperGuide = ({ onBack }: { onBack: () => void }) => {
                 <span className="text-white font-bold">
                   4Everland (S3 compatible Edge Cloud)
                 </span>
-                . 
+                .
               </p>
               <p>
-                When a developer uploads an application, the file bypasses our central servers using a <span className="text-white font-bold">Presigned Edge Upload URL</span>. The binary goes directly into immutable Web3 storage (Arweave/IPFS), granting the developer an instantly accessible Public Object Key (CID).
-              </p>
-            </div>
-          </div>
-          
-          <div className="space-y-6">
-            <h3 className="text-xl font-bold text-white flex items-center gap-3">
-               <Bot size={24} className="text-kaspa" /> 3. Groq AI Integration (Kaspstore.kas Assistant)
-            </h3>
-            <div className="space-y-4 text-sm text-slate-400 leading-relaxed">
-              <p>
-                 To assist users in rapidly understanding new decentralized applications, an <span className="text-white font-bold">AI Support Engine</span> is embedded directly into the App Details screen.
-              </p>
-              <p>
-                 This AI is powered by <span className="text-white font-bold">Groq LPU Inference Engine</span> utilizing the <code>llama-3.1-8b-instant</code> model. Operating at hundreds of tokens per second, it intercepts the app's metadata, permissions, and history to swiftly answer arbitrary questions from the user (e.g. &quot;What permissions does this app need?&quot;), saving extreme amounts of time.
+                When a developer uploads an application, the file bypasses our
+                central servers using a{" "}
+                <span className="text-white font-bold">
+                  Presigned Edge Upload URL
+                </span>
+                . The binary goes directly into immutable Web3 storage
+                (Arweave/IPFS), granting the developer an instantly accessible
+                Public Object Key (CID).
               </p>
             </div>
           </div>
 
           <div className="space-y-6">
             <h3 className="text-xl font-bold text-white flex items-center gap-3">
-               <ShieldCheck size={24} className="text-kaspa" /> 4. Protocol Updates & Trust
+              <Bot size={24} className="text-kaspa" /> 3. Groq AI Integration
+              (Kaspstore.kas Assistant)
             </h3>
             <div className="space-y-4 text-sm text-slate-400 leading-relaxed">
               <p>
-                Decentralized files are completely <span className="text-white font-bold">immutable</span>. To push an update, the developer uploads a new binary to 4Everland, generating a new Object URL.
+                To assist users in rapidly understanding new decentralized
+                applications, an{" "}
+                <span className="text-white font-bold">AI Support Engine</span>{" "}
+                is embedded directly into the App Details screen.
               </p>
               <p>
-                The developer then signs a cryptographic message utilizing their connected Kaspa Wallet. This un-gates the metadata registry to legally swap the live <span className="text-white font-bold">Download Pointer</span> to the new application version, triggering automatic update notifications for all ecosystem clients.
+                This AI is powered by{" "}
+                <span className="text-white font-bold">
+                  Groq LPU Inference Engine
+                </span>{" "}
+                utilizing the <code>llama-3.1-8b-instant</code> model. Operating
+                at hundreds of tokens per second, it intercepts the app's
+                metadata, permissions, and history to swiftly answer arbitrary
+                questions from the user (e.g. &quot;What permissions does this
+                app need?&quot;), saving extreme amounts of time.
               </p>
             </div>
           </div>
-          
+
           <div className="space-y-6">
             <h3 className="text-xl font-bold text-white flex items-center gap-3">
-               <Vote size={24} className="text-kaspa" /> 5. Ecosystem & Governance
+              <ShieldCheck size={24} className="text-kaspa" /> 4. Protocol
+              Updates & Trust
             </h3>
             <div className="space-y-4 text-sm text-slate-400 leading-relaxed">
               <p>
-                Kaspstore.kas is driven by the Kaspa community. Governance is conducted via <span className="text-white font-bold">Decentralized Proposals</span>, where stakeholders can influence protocol trajectory.
+                Decentralized files are completely{" "}
+                <span className="text-white font-bold">immutable</span>. To push
+                an update, the developer uploads a new binary to 4Everland,
+                generating a new Object URL.
               </p>
               <p>
-                Voting is conducted directly on-chain. Users authenticate with their Kaspa wallet, interact with the <span className="text-white font-bold">Governance Dashboard</span>, and cast votes linked to their KNS identity, ensuring that collective decisions remain transparent and censorship-resistant.
+                The developer then signs a cryptographic message utilizing their
+                connected Kaspa Wallet. This un-gates the metadata registry to
+                legally swap the live{" "}
+                <span className="text-white font-bold">Download Pointer</span>{" "}
+                to the new application version, triggering automatic update
+                notifications for all ecosystem clients.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <h3 className="text-xl font-bold text-white flex items-center gap-3">
+              <Vote size={24} className="text-kaspa" /> 5. Ecosystem &
+              Governance
+            </h3>
+            <div className="space-y-4 text-sm text-slate-400 leading-relaxed">
+              <p>
+                Kaspstore.kas is driven by the Kaspa community. Governance is
+                conducted via{" "}
+                <span className="text-white font-bold">
+                  Decentralized Proposals
+                </span>
+                , where stakeholders can influence protocol trajectory.
+              </p>
+              <p>
+                Voting is conducted directly on-chain. Users authenticate with
+                their Kaspa wallet, interact with the{" "}
+                <span className="text-white font-bold">
+                  Governance Dashboard
+                </span>
+                , and cast votes linked to their KNS identity, ensuring that
+                collective decisions remain transparent and
+                censorship-resistant.
               </p>
             </div>
           </div>
@@ -4371,7 +4448,8 @@ const DeveloperGuide = ({ onBack }: { onBack: () => void }) => {
                 Identity Resolution
               </h4>
               <p className="text-xs text-slate-500 leading-relaxed">
-                Connect Kasware or a similar wallet to establish sovereign control.
+                Connect Kasware or a similar wallet to establish sovereign
+                control.
               </p>
             </div>
             <div className="space-y-3">
@@ -4382,7 +4460,8 @@ const DeveloperGuide = ({ onBack }: { onBack: () => void }) => {
                 Direct Edge Upload
               </h4>
               <p className="text-xs text-slate-500 leading-relaxed">
-                Send binary directly to 4Everland Arweave/IPFS integration nodes.
+                Send binary directly to 4Everland Arweave/IPFS integration
+                nodes.
               </p>
             </div>
             <div className="space-y-3">
@@ -4393,7 +4472,8 @@ const DeveloperGuide = ({ onBack }: { onBack: () => void }) => {
                 Etch Registry
               </h4>
               <p className="text-xs text-slate-500 leading-relaxed">
-                Sign Kaspa payloads authorizing the global storefront entry index.
+                Sign Kaspa payloads authorizing the global storefront entry
+                index.
               </p>
             </div>
             <div className="space-y-3">
@@ -4404,7 +4484,8 @@ const DeveloperGuide = ({ onBack }: { onBack: () => void }) => {
                 AI Discovery
               </h4>
               <p className="text-xs text-slate-500 leading-relaxed">
-                 The Groq AI engine ingests the registry string to assist search mechanics.
+                The Groq AI engine ingests the registry string to assist search
+                mechanics.
               </p>
             </div>
           </div>
@@ -4607,9 +4688,9 @@ const DeveloperGuide = ({ onBack }: { onBack: () => void }) => {
               <Globe size={20} className="text-kaspa" /> Open Protocol
             </h3>
             <p className="text-sm text-slate-400 leading-relaxed">
-              The Kaspstore.kas API is public. You can build your own specialized
-              frontend, a command-line client, or a custom management node that
-              listens to these DAG inscriptions.
+              The Kaspstore.kas API is public. You can build your own
+              specialized frontend, a command-line client, or a custom
+              management node that listens to these DAG inscriptions.
             </p>
           </div>
           <button
@@ -4721,7 +4802,7 @@ export default function App() {
   useEffect(() => {
     const fetchNetworkStats = async (retries = 3) => {
       // Small delay on initial load to allow server/app to settle
-      await new Promise(res => setTimeout(res, 2000));
+      await new Promise((res) => setTimeout(res, 2000));
       for (let i = 0; i < retries; i++) {
         try {
           const response = await fetch("/api/network-info");
@@ -4730,11 +4811,11 @@ export default function App() {
           }
           const data = await response.json();
           if (data.blockCount) {
-             const count = parseFloat(data.blockCount);
-             setIndexCycle(count / 1000000);
-             setBlueScore(parseFloat(data.virtualDaaScore || "0"));
-             setActiveNodes(Math.floor(1800 + Math.random() * 100));
-             return; 
+            const count = parseFloat(data.blockCount);
+            setIndexCycle(count / 1000000);
+            setBlueScore(parseFloat(data.virtualDaaScore || "0"));
+            setActiveNodes(Math.floor(1800 + Math.random() * 100));
+            return;
           }
         } catch (e: any) {
           console.warn(`[Stats] Fetch attempt ${i + 1} failed: ${e.message}`);
@@ -4745,7 +4826,7 @@ export default function App() {
               stack: e.stack,
             });
           } else {
-             await new Promise(res => setTimeout(res, 2000));
+            await new Promise((res) => setTimeout(res, 2000));
           }
         }
       }
@@ -5036,107 +5117,54 @@ export default function App() {
   };
 
   const connectWalletByType = async (
-    type: "kasware" | "keperia" | "kastle",
+    type: "kasware" | "kasperia" | "kastle",
   ) => {
-    console.log(`[Wallet] Attempting connection to: ${type}`);
-    // FIRST: Check immediately to preserve User Activation stack
+    console.log(`[Wallet] Connecting to: ${type}`);
+    // IMPORTANT: No async delays before the first provider call to preserve user activation
     let provider = getWalletProvider(type);
-    
-    // SECOND: Only retry if not found immediately
+
     if (!provider) {
-      console.log(`[Wallet] Provider not found immediately, starting retry loop...`);
-      // Retry detection for 5 seconds to allow slower extensions to inject
-      for (let i = 0; i < 10; i++) {
-        await new Promise(res => setTimeout(res, 500));
-        provider = getWalletProvider(type);
-        if (provider) {
-          console.log(`[Wallet] Provider found after ${i + 1} retries`);
-          break;
-        }
-      }
+      // Small check for standard 'kaspa' name which many wallets now use
+      provider = (window as any).kaspa;
     }
 
     if (!provider) {
-      console.warn(`[Wallet] Provider for ${type} not found in window object`);
       toast.error(`${type} extension not detected.`, {
-        description:
-          "Please ensure your wallet extension is installed and active.",
+        description: "Please ensure your wallet extension is installed and active.",
         action: {
           label: "Install",
-          onClick: () =>
-            window.open(
-              type === "kasware"
-                ? "https://kasware.xyz"
-                : type === "kastle"
-                  ? "https://kastle.cc"
-                  : "https://kaperia.com",
-              "_blank",
-            ),
+          onClick: () => window.open(
+            type === "kasware" ? "https://kasware.xyz" : 
+            type === "kastle" ? "https://kastle.cc" : "https://kaperia.com",
+            "_blank"
+          ),
         },
       });
       return;
     }
 
     try {
-      // Try to trigger the popup as early as possible to preserve user activation
-      console.log(`[Wallet] Calling requestAccounts on ${type} provider...`);
-
-      // Some wallets have issues if state updates happen exactly at the same time as the prompt
-      // We still set it but we'll try to initiate the call immediately after
       setWalletState("scanning");
-
       let accounts;
-      try {
-        // Priority fallbacks for various Kaspa wallet implementations
-        const requestPromise = async () => {
-          if (provider.requestAccounts) {
-            return await provider.requestAccounts();
-          } else if (provider.request) {
-            // Try multiple method variants for request()
-            const methods = [
-              "kaspa_requestAccounts",
-              "requestAccounts",
-              "eth_requestAccounts",
-              "connect",
-            ];
-            let lastError;
-            for (const method of methods) {
-              try {
-                console.log(`[Wallet] Trying method: ${method}`);
-                const res = await provider.request({ method });
-                if (res) return res;
-              } catch (e) {
-                lastError = e;
-                console.warn(`[Wallet] Method ${method} failed:`, e);
-              }
-            }
-            if (!accounts && lastError) throw lastError;
-          } else if (provider.enable) {
-            return await provider.enable();
-          } else if (provider.connect) {
-            return await provider.connect();
-          } else {
-            throw new Error(
-              "No connection method found on provider. Check if the extension is fully loaded.",
-            );
+      
+      // Direct call - preserves user activation stack
+      const requestAccounts = async () => {
+        if (provider.requestAccounts) return await provider.requestAccounts();
+        if (provider.request) {
+          const methods = ["kaspa_requestAccounts", "requestAccounts", "connect"];
+          for (const method of methods) {
+            try {
+              const res = await provider.request({ method });
+              if (res) return res;
+            } catch (e) {}
           }
-        };
+        }
+        if (provider.enable) return await provider.enable();
+        if (provider.connect) return await provider.connect();
+        throw new Error("No connection method found");
+      };
 
-        // Add a timeout to prevent hanging forever, especially in iframe previews
-        console.time("[Wallet] Connection Request");
-        accounts = await Promise.race([
-          requestPromise(),
-          new Promise((_, reject) => setTimeout(() => {
-            console.timeEnd("[Wallet] Connection Request");
-            reject(new Error("Connection request timed out. Please check your extension."));
-          }, 30000))
-        ]);
-        console.timeEnd("[Wallet] Connection Request");
-      } catch (callError: any) {
-        console.error(`[Wallet] Method call failed:`, callError);
-        throw callError;
-      }
-
+      accounts = await requestAccounts();
       console.log(`[Wallet] Received accounts:`, accounts);
 
       if (typeof accounts === "string") {
@@ -5192,10 +5220,12 @@ export default function App() {
       } else {
         setWalletState("idle");
       }
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error("[Wallet Connection Error]:", e);
       setWalletState("idle");
-      toast.error(`Failed to connect ${type} wallet.`);
+      toast.error(
+        `Failed to connect ${type} wallet: ${e?.message || "Unknown error"}. Check console for details.`,
+      );
     }
   };
 
@@ -5862,8 +5892,8 @@ export default function App() {
                       </div>
                       <div className="pt-4 border-t border-white/5">
                         <p className="text-[10px] text-slate-500 leading-relaxed italic">
-                          The Kaspstore.kas registry is a layer-2 protocol etched
-                          directly onto the Kaspa GHOSTDAG. Metrics above
+                          The Kaspstore.kas registry is a layer-2 protocol
+                          etched directly onto the Kaspa GHOSTDAG. Metrics above
                           reflect the health of the indexer swarm across all
                           participating nodes.
                         </p>
@@ -6164,14 +6194,14 @@ export default function App() {
                       <div className="space-y-4 mb-8">
                         {isSyncingProposals ? (
                           <div className="py-8 text-center border border-white/5 rounded-xl border-dashed">
-                             <Loader2
-                               size={16}
-                               className="text-kaspa/40 animate-spin mx-auto mb-2"
-                             />
-                             <p className="text-[10px] text-slate-600 font-mono">
-                               Syncing Governance State...
-                             </p>
-                           </div>
+                            <Loader2
+                              size={16}
+                              className="text-kaspa/40 animate-spin mx-auto mb-2"
+                            />
+                            <p className="text-[10px] text-slate-600 font-mono">
+                              Syncing Governance State...
+                            </p>
+                          </div>
                         ) : proposals.length > 0 ? (
                           proposals.map((prop) => (
                             <div
@@ -6219,10 +6249,10 @@ export default function App() {
                           ))
                         ) : (
                           <div className="py-8 text-center border border-white/5 rounded-xl border-dashed">
-                             <p className="text-[10px] text-slate-600 font-mono">
-                               No proposals found.
-                             </p>
-                           </div>
+                            <p className="text-[10px] text-slate-600 font-mono">
+                              No proposals found.
+                            </p>
+                          </div>
                         )}
                       </div>
 
