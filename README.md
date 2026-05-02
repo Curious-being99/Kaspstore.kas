@@ -1,32 +1,29 @@
-# Kaspstore.kas
+# Kaspstore
 
-Kaspstore.kas is a decentralized appstore built on the Kaspa blockchain. It provides a secure, censorship-resistant platform where users can discover, install, and manage applications, manage their digital assets, and participate in community-driven governance.
+Kaspstore is a decentralized application distribution protocol built on the Kaspa blockchain. It provides a secure, censorship-resistant platform for discovering, installing, and managing applications with complete user sovereignty.
 
-## Features
+## Core Features
 
-- **Decentralized Marketplace:** Explore and install dApps directly from the blockchain.
-- **KNS Identity & Wallet Integration:** Authenticate using Kaspa wallets and manage your digital identity with KNS.
-- **Community Governance:** Participate in decentralized proposals to influence protocol trajectory, with voting linked to KNS identities.
+- **Sovereign Application Distribution:** A permissionless registry anchored on the Kaspa GHOSTDAG.
+- **Sovereign Identity (KSI):** Index nodes and applications with .ks sovereign handles, using cryptographic proof-of-ownership.
+- **Decentralized Storage:** Leverages 4Everland for edge-optimized hosting on IPFS and permanent archiving on Arweave, ensuring zero downtime and censorship resistance.
+- **AI-Powered Discovery:** An integrated, rapid-inference AI engine powered by Groq provides tailored assistance and app insights.
+- **Community Governance:** Participate in transparent, on-chain proposals to shape the future of the distribution protocol.
 
-## Deployment & Requirements
+## Protocol Architecture
 
-This project is configured for modern Node.js environments.
+Kaspstore combines a high-performance Express/Node.js gateway for orchestration with immutable storage networks for binary hosting. 
 
-- **Engine:** Node.js 20 or higher.
-- **Build System:** Uses Vite and esbuild for efficient production builds.
-
-### Development
+## Development
 
 ```bash
 npm install
 npm run dev
 ```
 
-### Build and Deploy
+## Build and Deploy
 
 ```bash
 npm run build
 npm start
 ```
-
-The build command compiles the server entry point (`server.ts`) to `dist/server.cjs` and bundles the frontend.
