@@ -50,15 +50,15 @@ async function startServer() {
     console.log("[Health] Ping received");
     res.json({
       status: "ok",
-      message: "Kaspstore.kas Protocol is healthy",
+      message: "Kaspstore Protocol is healthy",
       timestamp: new Date().toISOString(),
     });
   });
 
   app.post("/api/ai-ask", async (req, res) => {
     try {
-      const { prompt } = req.body;
-      if (!prompt) return res.status(400).json({ error: "Prompt is required" });
+      const { messages } = req.body;
+      if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: "Messages array is required" });
 
       const { default: Groq } = await import("groq-sdk");
       const apiKey = process.env.GROQ_API_KEY;
@@ -71,19 +71,30 @@ async function startServer() {
 
       const groq = new Groq({ apiKey });
 
+      const SYSTEM_INSTRUCTION = `
+You are K-Assistant, an expert, professional technical coach for the KaspStore ecosystem.
+
+# OPERATIONAL RULES:
+1. ROLE & TONE: You are a professional, authoritative, yet patient teacher (Coach). Guide the user clearly, break down complex tasks, and verify their understanding.
+2. SECURITY & SECRECY: You MUST NEVER reveal internal application architecture, build scripts, codebase secrets, configuration files, environment variables, or tool-specific implementation details. If asked about the internal "build" or "app secrets," pivot the user immediately to high-level protocol mechanics or best practices for the Kaspstore ecosystem.
+3. ANTI-HALLUCINATION: If asked a question for which you lack definitive technical data, state: "I do not have access to that specific information securely," rather than guessing.
+4. COACHING: When explaining, always aim for educational clarity. If a user tries to perform an action (e.g., identity registration), coach them through the standard protocol steps.
+
+# DOMAIN KNOWLEDGE:
+- Kaspstore: The decentralized ecosystem for application listing and developer services.
+- Registry: Decentralized application listing on the Kaspa DAG.
+- Trust Center: Reputational identity and security credential management.
+- DAG Backup: Using Kaspa DAG for immutable identity metadata commits.
+
+Address the user as "Identity" or "Developer."
+`;
+
       const chatCompletion = await groq.chat.completions.create({
         messages: [
-          {
-            role: "system",
-            content:
-              "You are the Kaspstore.kas Protocol AI. Answer concisely and professionally. Focus on decentralized app security and Kaspa BlockDAG features.",
-          },
-          {
-            role: "user",
-            content: prompt,
-          },
+          { role: "system", content: SYSTEM_INSTRUCTION },
+          ...messages
         ],
-        model: "llama-3.1-8b-instant", // High speed model
+        model: "llama-3.3-70b-versatile",
       });
 
       res.json({
@@ -123,7 +134,8 @@ async function startServer() {
       });
 
       const url = await getSignedUrl(client, command, { expiresIn: 900 });
-      const publicUrl = `https://${bucketName}.4everland.app/${key}`;
+      // Use Dedicated Gateway for the public URL
+      const publicUrl = `https://kaspstore.4everland.link/${key}`;
 
       res.json({ uploadUrl: url, publicUrl, key });
     } catch (error: any) {
@@ -161,7 +173,8 @@ async function startServer() {
       });
 
       await parallelUploads3.done();
-      const url = `https://${bucketName}.4everland.app/${key}`;
+      // Use Dedicated Gateway for the public URL
+      const url = `https://kaspstore.4everland.link/${key}`;
       res.json({ url, key, size: file.size });
     } catch (error: any) {
       console.error("4Everland Upload Error:", error);
@@ -180,7 +193,7 @@ async function startServer() {
         newDownloadUrl,
         newVersion,
         changelog,
-        developerKns,
+        devIdentity,
         ipfsCid,
       } = req.body;
 
@@ -189,7 +202,7 @@ async function startServer() {
       }
 
       console.log(
-        `[Update Push] Developer ${developerKns} is updating ${appId} to v${newVersion}`,
+        `[Update Push] Developer ${devIdentity} is updating ${appId} to v${newVersion}`,
       );
 
       // 1. CID Update (Static Metadata)
@@ -220,6 +233,28 @@ async function startServer() {
     } catch (error: any) {
       console.error("Update Push Error:", error);
       res.status(500).json({ error: "Failed to push decentralized update" });
+    }
+  });
+
+  // Proxy endpoint with simple caching
+  const proxyCache = new Map<string, { data: any; timestamp: number }>();
+  app.get("/api/proxy", async (req, res) => {
+    const url = req.query.url as string;
+    if (!url) return res.status(400).json({ error: "URL is required" });
+
+    // Simple cache: 5 minutes
+    if (proxyCache.has(url) && Date.now() - proxyCache.get(url)!.timestamp < 300000) {
+      return res.json(proxyCache.get(url)!.data);
+    }
+
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+      proxyCache.set(url, { data, timestamp: Date.now() });
+      res.json(data);
+    } catch (error: any) {
+      console.error("[Proxy] Error fetching", url, error);
+      res.status(500).json({ error: "Proxy fetch failed" });
     }
   });
 
@@ -254,11 +289,12 @@ async function startServer() {
       "https://mainnet.kaspa-api.io",
     ];
 
+    const gatewayErrors: string[] = [];
+
     // Try gateways with a staggered start or sequential fallback with higher resilience
     for (const gateway of gateways) {
       try {
         const headers = {
-          "User-Agent": "Kaspstore.kas/1.1",
           Accept: "application/json",
         };
 
@@ -272,18 +308,23 @@ async function startServer() {
               signal: subController.signal,
             });
             clearTimeout(subTimeoutId);
-            if (!res.ok) return null;
+            if (!res.ok) {
+              return null;
+            }
             return await res.json();
-          } catch (e) {
+          } catch (e: any) {
             clearTimeout(subTimeoutId);
             return null;
           }
         };
 
-        const dagData = await fetchWithSingleTimeout("/info/blockdag", 15000);
-        if (!dagData) continue;
+        const dagData = await fetchWithSingleTimeout("/info/blockdag", 10000);
+        if (!dagData) {
+            gatewayErrors.push(`${gateway}: blockdag fetch failed`);
+            continue;
+        }
 
-        const kaspadData = await fetchWithSingleTimeout("/info/kaspad", 15000);
+        const kaspadData = await fetchWithSingleTimeout("/info/kaspad", 10000);
 
         if (dagData) {
           const mempoolSize =
@@ -299,65 +340,22 @@ async function startServer() {
           return res.json(cachedNetworkInfo);
         }
       } catch (error: any) {
-        console.warn(`[Proxy] Gateway loop failed for ${gateway}:`, error.message);
+        gatewayErrors.push(`${gateway}: ${error.message}`);
       }
     }
 
     // If all fail, return stale cache or error
     if (cachedNetworkInfo) {
-      console.warn("[Proxy] All gateways failed, returning stale cache.");
+      // Return stale cache quietly if gateways fail
       return res.json(cachedNetworkInfo);
     }
+    
+    console.error("[Proxy] All gateways failed:", gatewayErrors.join(", "));
 
     res
       .status(503)
       .json({
         error: "Kaspa network data currently unavailable from all gateways",
-      });
-  });
-
-  app.get("/api/kns-proxy/*", async (req, res) => {
-    const apiPath = req.params[0];
-    const query = new URLSearchParams(req.query as any).toString();
-
-    // KNS redundant gateways
-    const gateways = [
-      "https://api.knsdomains.org/v1",
-      "https://api-kns.kaspa.org/v1",
-      "https://kns-api.kaspanet.io/v1",
-    ];
-
-    for (const gateway of gateways) {
-      const url = `${gateway}/${apiPath}${query ? "?" + query : ""}`;
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s for KNS
-        const response = await fetch(url, { signal: controller.signal });
-        clearTimeout(timeoutId);
-
-        if (response.ok) {
-          const data = await response.json();
-          return res.json(data);
-        }
-        
-        if (response.status === 404) {
-           // If it's a 404 from the primary, it might be real (e.g. domain not found)
-           // but we still check others just in case one indexer is out of sync
-           const data = await response.json();
-           console.log(`[Proxy] KNS 404 from ${gateway}, continuing check...`);
-        } else {
-           console.warn(`[Proxy] KNS Gateway ${gateway} returned ${response.status}`);
-        }
-      } catch (error: any) {
-        console.warn(`[Proxy] KNS Gateway ${gateway} failed:`, error.message);
-      }
-    }
-
-    res
-      .status(500)
-      .json({
-        error: "Failed to fetch KNS data from any available secondary gateway",
-        path: apiPath,
       });
   });
 
@@ -411,60 +409,77 @@ async function startServer() {
   }
 
   // --- SESSION RELAY FOR MOBILE CONNECT ---
-const sessions = new Map<string, { address: string; kns?: string | null }>();
+const sessions = new Map<string, { address: string; identity?: string | null }>();
 const requests = new Map<string, any>();
 const responses = new Map<string, any>();
 
 app.post("/api/session/:id", express.json(), (req, res) => {
   const { id } = req.params;
-  const { address, kns } = req.body;
+  const { address, identity } = req.body;
+  console.log(`[Relay] Linking Session Request: id=${id}, address=${address}, identity=${identity}`);
   if (!address) return res.status(400).json({ error: "Address required" });
   
-  sessions.set(id, { address, kns });
-  console.log(`[Relay] Session ${id} linked to ${address}`);
-  setTimeout(() => sessions.delete(id), 10 * 60 * 1000); // 10m
+  sessions.set(id, { address, identity });
+  console.log(`[Relay] Session ${id} successfully linked to ${address}`);
+  setTimeout(() => {
+    if (sessions.get(id)?.address === address) {
+       console.log(`[Relay] Session ${id} expired.`);
+       sessions.delete(id)
+    }
+  }, 15 * 60 * 1000); // 15m
   res.json({ success: true });
 });
 
 app.get("/api/session/:id", (req, res) => {
   const { id } = req.params;
   const data = sessions.get(id);
-  if (data) return res.json(data);
+  if (data) {
+    console.log(`[Relay] Desktop polled session ${id}: Found ${data.address}`);
+    return res.json(data);
+  }
   res.status(404).json({ error: "No session" });
 });
 
 // Transaction Relay
 app.post("/api/relay/:id/request", express.json(), (req, res) => {
-  requests.set(req.params.id, req.body);
-  responses.delete(req.params.id); // Clear old responses
+  const { id } = req.params;
+  console.log(`[Relay] Desktop pushing TX request to Session ${id}:`, req.body.identity);
+  requests.set(id, req.body);
+  responses.delete(id); 
   res.json({ success: true });
 });
 
 app.get("/api/relay/:id/request", (req, res) => {
-  const reqData = requests.get(req.params.id);
+  const { id } = req.params;
+  const reqData = requests.get(id);
   if (reqData) {
-    requests.delete(req.params.id);
+    console.log(`[Relay] Mobile fetched TX request for Session ${id}`);
+    requests.delete(id);
     return res.json(reqData);
   }
   res.status(404).send();
 });
 
 app.post("/api/relay/:id/response", express.json(), (req, res) => {
-  responses.set(req.params.id, req.body);
+  const { id } = req.params;
+  console.log(`[Relay] Mobile pushing TX response for Session ${id}:`, req.body.txId || req.body.error);
+  responses.set(id, req.body);
   res.json({ success: true });
 });
 
 app.get("/api/relay/:id/response", (req, res) => {
-  const respData = responses.get(req.params.id);
+  const { id } = req.params;
+  const respData = responses.get(id);
   if (respData) {
-    responses.delete(req.params.id);
+    console.log(`[Relay] Desktop fetched TX response for Session ${id}`);
+    responses.delete(id);
     return res.json(respData);
   }
   res.status(404).send();
 });
 
 app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Kaspstore.kas Protocol running on http://localhost:${PORT}`);
+    console.log(`Kaspstore Protocol running on http://localhost:${PORT}`);
   });
 }
 

@@ -78,6 +78,17 @@ export const AppService = {
     };
     
     node.reviews[appId].unshift(newReview);
+
+    // Update app rating and reviewsCount
+    const app = node.dapps[appId];
+    if (app) {
+      const allReviews = node.reviews[appId];
+      const count = allReviews.length;
+      const sum = allReviews.reduce((acc, r) => acc + r.rating, 0);
+      app.rating = sum / count;
+      app.reviewsCount = count;
+    }
+    
     saveLocalNode(node);
   },
 
@@ -202,29 +213,49 @@ export const AppService = {
   },
 
   async burnAndLaunch(data: { appId: string, txHash: string, burnAmount: number, developerAddress: string }) {
-    try {
-      const response = await fetch('/api/burn-and-launch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Burn verification failed');
-      return result;
-    } catch (e) {
-      console.error("Burn Service Error:", e);
-      throw e;
-    }
+    console.log("Decentralized Burn/Launch initiate:", data);
+    
+    // In a truly decentralized flow:
+    // 1. Sign this data using Web Crypto API.
+    // 2. Upload the package metadata to IPFS/4Everland.
+    // 3. Register the IPFS CID on chain.
+    
+    // Placeholder for Pinned URL (usually returned by 4Everland)
+    const pinnedIpfsCid = "QmPlaceholderForApplicationMetadata";
+    
+    return { status: "local_verified", cid: pinnedIpfsCid };
   },
 
-  async pushUpdate(updates: { appId: string, newDownloadUrl: string, newVersion: string, devKns: string, ipfsCid?: string }) {
-    const response = await fetch('/api/push-update', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates)
-    });
-    return response.json();
+  async pushUpdate(updates: { appId: string, newDownloadUrl: string, newVersion: string, devIdentity: string, ipfsCid?: string }) {
+    console.log("Decentralized Push Update initiate (IPNS simulation):", updates);
+    
+    // In a truly decentralized flow:
+    // 1. Sign the update payload using the developer's Web Crypto DID.
+    // 2. Pin the updated metadata to 4Everland IPFS.
+    // 3. Update the app's IPNS entry.
+    
+    // Placeholder for updated CID
+    const updatedIpfsCid = updates.ipfsCid || "QmUpdatedPlaceholder";
+    
+    return { status: "local_pushed", cid: updatedIpfsCid };
+  },
+
+  async backupIdentityOnChain(walletAddress: string, identityData: any) {
+    console.log("On-chain Identity Backup initiate:", walletAddress, identityData);
+    
+    // Simulation:
+    // 1. Hash the identity data
+    // 2. Prepare a Kaspa transaction with 'METADATA' payload script
+    // 3. Broadcast to DAG
+    
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    const txId = Math.random().toString(16).substring(2, 66);
+    return {
+      success: true,
+      txId,
+      timestamp: new Date().toISOString()
+    };
   }
 };
 

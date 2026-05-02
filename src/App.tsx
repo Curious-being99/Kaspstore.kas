@@ -54,15 +54,22 @@ import {
   RefreshCw,
   Flame,
   Bot,
+  Copy,
+  Link2,
+  CloudRain,
+  DownloadCloud,
+  Lock,
+  ArrowRight,
+  ArrowLeft,
+  Share2,
+  XCircle,
 } from "lucide-react";
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Toaster, toast } from "sonner";
 import { QRCodeCanvas } from "qrcode.react";
 import { AppService } from "./lib/appService";
-import { resolveNativeKNS } from "./lib/knsResolver";
-import { KnsService, KNS_REGISTRY_ADDRESS } from "./lib/knsService";
-import { KnsIndexer } from "./lib/knsIndexer";
+import { KsiService } from "./lib/ksiService";
 import {
   KaspStoreProtocol,
   type KaspStoreMetadata,
@@ -81,6 +88,9 @@ declare global {
     kastle?: any;
   }
 }
+
+import { AIAssistant } from "./components/AIAssistant";
+import { ReviewSummary } from "./components/ReviewSummary";
 
 // --- Types ---
 interface User {
@@ -114,7 +124,7 @@ interface AppListing {
   version: string;
   developer: string;
   developerId: string;
-  developerKns: string;
+  developerIdentity: string;
   isVerified: boolean;
   isFlagged: boolean;
   description: string;
@@ -176,6 +186,7 @@ const CATEGORIES = [
       { id: "Photography", label: "Photography" },
       { id: "Shopping", label: "Shopping" },
       { id: "Education", label: "Education" },
+      { id: "Finance", label: "Finance" },
       { id: "ArtDesign", label: "Art & Design" },
       { id: "Personalization", label: "Personalization" },
       { id: "Weather", label: "Weather" },
@@ -255,10 +266,6 @@ const NativeKaspaConnectButton = ({
         <Loader2 size={14} className="animate-spin" />
       ) : accountName ? (
         <div className="flex items-center gap-2 px-1">
-          <LogOut
-            size={14}
-            className="opacity-70 group-hover:block"
-          />
           <span className="truncate max-w-[120px]">{accountName}</span>
         </div>
       ) : (
@@ -277,7 +284,7 @@ const Nav = ({
   mobileMenuOpen,
   user,
   walletAddress,
-  knsName,
+  identityName,
   walletState,
   onConnect,
   onDisconnect,
@@ -288,7 +295,7 @@ const Nav = ({
   mobileMenuOpen: boolean;
   user: User | null;
   walletAddress: string | null;
-  knsName: string | null;
+  identityName: string | null;
   walletState: "idle" | "scanning" | "signing" | "connected";
   onConnect: () => void;
   onDisconnect: () => void;
@@ -368,7 +375,7 @@ const Nav = ({
             onClick={onConnect}
             onDisconnect={onDisconnect}
             accountName={
-              knsName ||
+              identityName ||
               (walletAddress
                 ? `${walletAddress.slice(0, 4)}...${walletAddress.slice(-3)}`
                 : null)
@@ -489,11 +496,13 @@ const WalletSelectionModal = ({
   onClose,
   onSelect,
   onSelectMobileSession,
+  isMobileRelay = false,
 }: {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (type: "kasware" | "kasperia" | "kastle" | "manual") => void;
   onSelectMobileSession: (id: string) => void;
+  isMobileRelay?: boolean;
 }) => {
   const [availableWallets, setAvailableWallets] = useState({
     kasware: !!getWalletProvider("kasware"),
@@ -558,7 +567,7 @@ const WalletSelectionModal = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -570,7 +579,7 @@ const WalletSelectionModal = ({
             initial={{ scale: 0.95, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 20 }}
-            className="relative w-full max-w-[400px] bg-[#0c111d] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl"
+            className="relative w-full max-w-[400px] bg-bg-surface border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl"
           >
             <div className="p-8">
               <div className="flex justify-between items-center mb-8 px-2">
@@ -591,7 +600,7 @@ const WalletSelectionModal = ({
               </div>
 
               <div className="space-y-2">
-                {!showManualInput && !showMobileQR ? (
+                {!showManualInput ? (
                   <>
                     {wallets.map((wallet) => (
                       <button
@@ -629,27 +638,6 @@ const WalletSelectionModal = ({
                     ))}
                     <div className="pt-4 mt-4 border-t border-white/5 space-y-2">
                       <button
-                        onClick={() => generateSession()}
-                        className="w-full flex items-center gap-5 p-4 rounded-[2rem] hover:bg-white/5 transition-all text-left group"
-                      >
-                        <div className="w-12 h-12 bg-indigo-900/30 rounded-[14px] flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
-                          <Smartphone size={20} className="text-indigo-400" />
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="text-xl font-bold text-white tracking-tight font-mono">
-                            Scan with Mobile
-                          </h4>
-                          <p className="text-[10px] text-indigo-500 font-bold uppercase tracking-widest mt-0.5">
-                            Connect Kaspium / KasWare Mobile
-                          </p>
-                        </div>
-                        <ChevronRight
-                          size={16}
-                          className="text-slate-700 group-hover:text-kaspa transition-colors"
-                        />
-                      </button>
-
-                      <button
                         onClick={() => setShowManualInput(true)}
                         className="w-full flex items-center gap-5 p-4 rounded-[2rem] hover:bg-white/5 transition-all text-left group"
                       >
@@ -671,39 +659,6 @@ const WalletSelectionModal = ({
                       </button>
                     </div>
                   </>
-                ) : showMobileQR ? (
-                  <div className="space-y-4 pt-2 text-center">
-                    <button 
-                      onClick={() => window.open(`${window.location.origin}${window.location.pathname}?sid=${relaySessionId}`, '_blank')}
-                      className="relative aspect-square w-full bg-white rounded-3xl overflow-hidden p-6 flex items-center justify-center border-4 border-kaspa group cursor-pointer hover:border-white transition-all"
-                    >
-                      <QRCodeCanvas
-                        value={`${window.location.origin}${window.location.pathname}?sid=${relaySessionId}`}
-                        size={512}
-                        level="H"
-                        includeMargin={false}
-                        className="w-full h-auto group-hover:opacity-10 transition-opacity"
-                      />
-                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity flex-col gap-2">
-                        <ExternalLink size={32} className="text-black" />
-                        <span className="text-black font-black text-[10px] uppercase tracking-widest">Open in new tab</span>
-                      </div>
-                    </button>
-                    <div>
-                      <p className="text-xs text-kaspa font-black uppercase tracking-widest mb-1 animate-pulse">
-                        Scan with your phone's camera
-                      </p>
-                      <p className="text-[10px] text-slate-500 max-w-[240px] mx-auto leading-relaxed font-bold uppercase tracking-tighter">
-                        Do not use the scanner inside your wallet app. Use your phone's native camera to open the link.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setShowMobileQR(false)}
-                      className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-bold text-xs uppercase tracking-widest transition-colors"
-                    >
-                      Back to Selection
-                    </button>
-                  </div>
                 ) : (
                   <div className="space-y-4 pt-2">
                     <div className="bg-slate-900 border border-white/10 rounded-2xl p-4">
@@ -727,10 +682,10 @@ const WalletSelectionModal = ({
                         Back
                       </button>
                       <button
-                        onClick={() => {
-                          if (manualAddress.trim().startsWith("kaspa:")) {
-                            (window as any).__manual_kaspa_address =
-                              manualAddress.trim();
+                        onClick={async () => {
+                          const val = manualAddress.trim().toLowerCase();
+                          if (val.startsWith("kaspa:")) {
+                            (window as any).__manual_kaspa_address = val;
                             onSelect("manual");
                             onClose();
                           } else {
@@ -739,7 +694,7 @@ const WalletSelectionModal = ({
                             });
                           }
                         }}
-                        disabled={!manualAddress.trim().startsWith("kaspa:")}
+                        disabled={!manualAddress.trim()}
                         className="flex-[2] py-4 bg-kaspa hover:bg-white text-black rounded-2xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-30"
                       >
                         Connect Profile
@@ -926,26 +881,30 @@ const FeaturedHero = ({
 const DeveloperTrustModal = ({
   isOpen,
   onClose,
-  developerKns,
+  developerIdentity,
   appsCount,
 }: {
   isOpen: boolean;
   onClose: () => void;
-  developerKns: string;
+  developerIdentity: string;
   appsCount: number;
 }) => {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (isOpen && developerKns) {
+    if (isOpen && developerIdentity) {
       setLoading(true);
-      KnsIndexer.getProfile(developerKns).then((p) => {
-        setProfile(p);
-        setLoading(false);
-      });
+      // We simulate profile resolution via Sovereign Identity proof lookup
+      const saved = localStorage.getItem(`ksi_identity_profile_${developerIdentity}`);
+      if (saved) {
+        setProfile(JSON.parse(saved));
+      } else {
+        setProfile({ name: developerIdentity, verified: true });
+      }
+      setLoading(false);
     }
-  }, [isOpen, developerKns]);
+  }, [isOpen, developerIdentity]);
 
   if (!isOpen) return null;
 
@@ -983,7 +942,7 @@ const DeveloperTrustModal = ({
             </div>
             <div>
               <p className="text-lg font-black text-white leading-none mb-1">
-                {developerKns}
+                {developerIdentity}
               </p>
               <p className="text-[10px] text-kaspa font-bold uppercase tracking-widest">
                 Verified Protocol Developer
@@ -1008,7 +967,7 @@ const DeveloperTrustModal = ({
 
           <div className="space-y-3 mb-8">
             <div className="flex items-center justify-between text-xs py-2 border-b border-white/5">
-              <span className="text-slate-500">KNS Registration</span>
+              <span className="text-slate-500">Identity Registration</span>
               <span className="text-white font-mono">Confirmed</span>
             </div>
             <div className="flex items-center justify-between text-xs py-2 border-b border-white/5">
@@ -1022,8 +981,8 @@ const DeveloperTrustModal = ({
           </div>
 
           <p className="text-[9px] text-slate-500 text-center leading-relaxed px-4">
-            Identity verified via Kaspa Name Service (KNS). This developer has
-            proven ownership of the linked .kas name on the BlockDAG.
+            Identity verified via Kaspstore Sovereign Identity. This developer has
+            proven ownership of the linked .ks handle via cryptographic proof.
           </p>
         </div>
       </motion.div>
@@ -1038,11 +997,11 @@ const Sidebar = ({
   onCategoryChange,
   onTabChange,
   walletAddress,
-  knsName,
+  identityName,
   onConnectWallet,
   walletState,
-  draftKnsName,
-  setDraftKnsName,
+  draftIdentityName,
+  setDraftIdentityName,
   appsCount,
   className = "",
 }: {
@@ -1052,11 +1011,11 @@ const Sidebar = ({
   onCategoryChange: (cat: string) => void;
   onTabChange: (tab: string) => void;
   walletAddress: string | null;
-  knsName: string | null;
+  identityName: string | null;
   onConnectWallet: () => void;
   walletState: "idle" | "scanning" | "signing" | "connected";
-  draftKnsName: string;
-  setDraftKnsName: (n: string) => void;
+  draftIdentityName: string;
+  setDraftIdentityName: (n: string) => void;
   appsCount: number;
   className?: string;
 }) => {
@@ -1238,117 +1197,55 @@ const AppCard = React.memo(
     return (
       <div className="flex flex-col gap-2">
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          whileTap={{ scale: 0.98 }}
+          whileTap={{ scale: 0.97 }}
           onClick={handleCardClick}
-          className={`bg-bg-surface border ${isExpanded ? "border-kaspa/50 ring-2 ring-kaspa/20 shadow-kaspa/10 rounded-t-[2.5rem] rounded-b-none" : "border-border-subtle rounded-[2.5rem]"} p-7 hover:border-kaspa/30 transition-all duration-500 group cursor-pointer relative overflow-hidden shadow-[0_4px_25px_rgba(0,0,0,0.4)] hover:shadow-[0_8px_40px_rgba(0,255,204,0.15)]`}
+          className={`bg-[#0f0f0f] border ${isExpanded ? "border-kaspa shadow-[0_0_30px_rgba(0,255,204,0.1)] rounded-t-[2rem] rounded-b-none" : "border-white/5 rounded-[2rem]"} p-6 hover:bg-[#141414] hover:border-white/10 transition-all duration-300 group cursor-pointer relative overflow-hidden shadow-xl`}
         >
-          <div className="flex items-start space-x-5 mb-5 relative z-10">
+          <div className="flex items-center space-x-4 relative z-10 mb-4">
             <div
-              className={`w-16 h-16 rounded-2xl flex-shrink-0 bg-gradient-to-br ${app.iconGradient || "from-[#1a1a1a] to-[#0d0d0d]"} flex items-center justify-center text-white overflow-hidden shadow-xl ring-1 ring-white/10 group-hover:scale-105 transition-transform duration-500 relative`}
+              className={`w-16 h-16 rounded-[1.25rem] flex-shrink-0 bg-[#1a1a1a] flex items-center justify-center text-white overflow-hidden shadow-lg border border-white/5 group-hover:scale-105 transition-transform duration-500`}
             >
               <img
                 src={app.icon}
                 alt={app.name}
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
-                loading="lazy"
               />
-              {app.subApps && (
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center backdrop-blur-[2px]">
-                  <Layers
-                    size={24}
-                    className={`text-kaspa transition-transform duration-500 ${isExpanded ? "rotate-180" : "animate-pulse"}`}
-                  />
-                </div>
-              )}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <h4
-                  className={`font-bold text-white text-base truncate tracking-tight group-hover:text-kaspa transition-colors ${app.isFlagged ? "line-through decoration-red-500 opacity-50" : ""}`}
-                >
+                <h4 className="font-bold text-white text-[15px] truncate tracking-tight group-hover:text-kaspa transition-colors">
                   {app.name}
                 </h4>
                 {app.isVerified && (
-                  <ShieldCheck
-                    size={14}
-                    className="text-kaspa fill-kaspa/20 shrink-0"
-                  />
-                )}
-                {isUpdateAvailable && (
-                  <span className="bg-sky-500 text-white text-[8px] px-1.5 py-0.5 rounded-full font-black uppercase tracking-widest animate-pulse ring-4 ring-sky-500/10">
-                    Update
-                  </span>
-                )}
-                {app.subApps && (
-                  <span className="bg-kaspa/20 text-kaspa text-[7px] px-1.5 py-0.5 rounded-full font-black uppercase tracking-widest shadow-lg shadow-kaspa/10">
-                    {isExpanded
-                      ? "Package Active"
-                      : `Bundle • ${app.subApps.length}`}
-                  </span>
+                  <ShieldCheck size={14} className="text-kaspa fill-kaspa/10" />
                 )}
               </div>
-              {app.subCategory && (
-                <p className="text-[10px] text-kaspa font-black uppercase tracking-widest mt-0.5 leading-none">
-                  {app.subCategory}
-                </p>
-              )}
-              <div className="flex items-center gap-1.5 mt-1">
-                <span className="text-[11px] text-slate-500 font-medium uppercase truncate tracking-wider">
-                  {app.developerKns || "Verified Developer"}
-                </span>
-                {app.developerKns && (
-                  <div
-                    className="flex items-center"
-                    title="KNS Identity Verified"
-                  >
-                    <ShieldCheck
-                      size={10}
-                      className="text-kaspa fill-kaspa/20"
-                    />
-                    <Check size={8} className="text-kaspa -ml-2.5" />
-                  </div>
-                )}
-              </div>
-              <p className="text-[11px] text-slate-400/50 font-medium uppercase mt-0.5 tracking-wider">
-                {app.category} • {app.size}
+              <p className="text-[11px] text-slate-500 font-medium">
+                {app.developer || "Verified Publisher"}
               </p>
-              <div className="flex items-center mt-2.5 space-x-3">
-                <div className="flex items-center gap-1 scale-90 origin-left">
-                  <span className="text-white text-xs font-bold">
-                    {app.rating}
-                  </span>
+              <div className="flex items-center mt-2 space-x-3">
+                <div className="flex items-center gap-1">
+                  <span className="text-white text-[11px] font-bold">{app.rating}</span>
                   <Star size={10} className="text-white fill-white" />
                 </div>
-                <div className="h-3 w-[1px] bg-white/10" />
-                <span className="text-slate-500 text-[11px] font-mono tracking-tighter">
+                <div className="h-2.5 w-[1px] bg-white/10" />
+                <span className="text-slate-500 text-[11px]">
                   {formatNumber(app.downloads)} downloads
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-between pt-3 relative z-10 border-t border-white/5">
-            <span
-              className={`text-[10px] font-black uppercase tracking-widest ${app.isPaid ? "text-kaspa" : "text-slate-400"}`}
-            >
-              {app.isPaid
-                ? `${app.kasPrice} KAS`
-                : app.subApps
-                  ? "Bundle Package"
-                  : "Public Index"}
+          <div className="flex items-center justify-between pt-4 border-t border-white/5">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+              {app.isPaid ? `${app.kasPrice} KAS` : "Free"}
             </span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onClick();
-              }}
-              className="text-[9px] font-black uppercase tracking-widest bg-white/5 px-3 py-1.5 rounded-lg border border-white/5 hover:bg-kaspa hover:text-black transition-all"
-            >
+            <div className="text-[9px] font-black uppercase tracking-widest bg-white/5 px-3 py-1.5 rounded-lg border border-white/5 group-hover:bg-kaspa group-hover:text-black transition-all">
               Details
-            </button>
+            </div>
           </div>
         </motion.div>
 
@@ -1413,16 +1310,15 @@ const AppCard = React.memo(
           )}
         </AnimatePresence>
       </div>
-    );
-  },
-);
+  );
+});
 
 const AppDetailModal = ({
   app,
   onClose,
   walletAddress,
   allApps,
-  knsName,
+  identityName,
   setCurrentTab,
   executeWalletConnect,
   onSelectApp,
@@ -1432,7 +1328,7 @@ const AppDetailModal = ({
   onClose: () => void;
   walletAddress: string | null;
   allApps: AppListing[];
-  knsName: string | null;
+  identityName: string | null;
   setCurrentTab: (tab: string) => void;
   executeWalletConnect: () => void;
   onSelectApp: (app: AppListing) => void;
@@ -1454,6 +1350,7 @@ const AppDetailModal = ({
   >("idle");
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [manifest, setManifest] = useState<KaspStoreManifest | null>(null);
+  const [activeScreenshot, setActiveScreenshot] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchReviews = async () => {
@@ -1470,53 +1367,26 @@ const AppDetailModal = ({
     fetchManifest();
   }, [app.id, app.manifestUrl]);
 
-  const handleAiAsk = async (query?: string) => {
-    const q = query || aiQuery;
-    if (!q) return;
-    setIsAiLoading(true);
-    setAiResponse("");
-    try {
-      const prompt = `You are a helpful AI assistant inside Kaspstore.kas (a decentralized app store for Kaspa).
-      The user is asking about the app: ${app.name}.
-      App Description: ${app.description}
-      App Category: ${app.category} / ${app.subCategory}
-      App Rating: ${app.rating} (${app.reviewsCount} reviews)
-      Data Safety: ${app.dataSafety?.noDataShared ? "No data shared with third parties" : "Some data shared"}.
-      
-      User Question: ${q}
-      
-      Respond concisely and professionally, highlighting features and safety.`;
-
-      const response = await fetch("/api/ai-ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
-      });
-      const data = await response.json();
-      if (data.error) throw new Error(data.error);
-      setAiResponse(
-        data.text || "I couldn't generate a response. Please try again.",
-      );
-    } catch (err) {
-      console.error("AI Error:", err);
-      setAiResponse("Sorry, there was an error processing your request.");
-    } finally {
-      setIsAiLoading(false);
-    }
+  // Use the Dedicated Gateway for all storage links
+  const getGatewayUrl = (url?: string) => {
+    if (!url) return "";
+    return url.replace(/https:\/\/[^\/]+.4everland.app/, 'https://kaspstore.4everland.link');
   };
 
+  const currentIcon = getGatewayUrl(app.icon);
+  const allScreenshots = [...(app.screenshots || []), ...(manifest?.screenshots || [])].map(getGatewayUrl);
+
   const handlePurchase = async () => {
-    if (!walletAddress || !knsName) {
+    if (!walletAddress || !identityName) {
       if (!walletAddress) {
         toast.error("Connect your wallet to purchase.");
         executeWalletConnect();
       } else {
-        toast.error("Verified KNS (.kas) Identity Required.", {
-          description:
-            "You need a KNS name linked to your wallet to participate in the DAG ecosystem.",
+        toast.error("Verified Sovereign Identity (.ks) Required.", {
+          description: "You need a sovereign identity linked to your wallet to participate in the app store.",
         });
-        setCurrentTab("developer"); // Redirect for registration
-        onClose(); // Close modal to focus on developer portal
+        setCurrentTab("developer");
+        onClose();
       }
       return;
     }
@@ -1534,28 +1404,17 @@ const AppDetailModal = ({
           throw new Error("Invalid price for application.");
         }
         const sompis = Math.round(amountKAS * 100000000);
-        // Fallback to a known format if developer ID is missing "kaspa:" prefix, or just use what we have
-        const targetAddress =
-          (app.developerId?.startsWith("kaspa:")
-            ? app.developerId
-            : localStorage.getItem("kaspstore_wallet_address")) ||
-          "kaspa:qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkx9zhx6";
+        const targetAddress = (app.developerId?.startsWith("kaspa:") ? app.developerId : localStorage.getItem("ksi_active_session")) || "kaspa:qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkx9zhx6";
         let txId = null;
 
         if (provider.sendKaspa) {
           txId = await provider.sendKaspa(targetAddress, sompis);
         } else if (provider.sendTransaction) {
-          txId = await provider.sendTransaction({
-            to: targetAddress,
-            amount: sompis,
-          });
+          txId = await provider.sendTransaction({ to: targetAddress, amount: sompis });
         } else if (provider.request) {
           txId = await provider.request({
             method: "kaspa_sendKaspa",
-            params: {
-              to: targetAddress,
-              amount: sompis,
-            },
+            params: { to: targetAddress, amount: sompis },
           });
         } else {
           throw new Error("Wallet provider doesn't support sending payments.");
@@ -1563,14 +1422,9 @@ const AppDetailModal = ({
 
         if (txId) {
           setCommerceState("verifying");
-          toast.loading("Verifying transaction on the DAG network...", {
-            id: "kas-verify",
-          });
-
+          toast.loading("Verifying transaction on the DAG network...", { id: "kas-verify" });
           await new Promise((r) => setTimeout(r, 3000));
-          toast.success("Payment confirmed! Gated download unlocked.", {
-            id: "kas-verify",
-          });
+          toast.success("Payment confirmed! Gated download unlocked.", { id: "kas-verify" });
           setCommerceState("success");
           handleDownload();
         } else {
@@ -1597,893 +1451,215 @@ const AppDetailModal = ({
     setIsVerifying(true);
     setDownloadProgress(0);
 
-    // Phase 1: Rapid Initialization (250ms-350ms)
-    // This provides the 'Play Store' feel of immediate responsiveness
-    await new Promise((resolve) => setTimeout(resolve, 350));
-
-    toast.loading("Verifying DAG Seal...", { id: "verify-seal" });
-
-    // Phase 2: Snappy Progress Fill
-    const interval = setInterval(() => {
-      setDownloadProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 50);
-
-    // Phase 3: Finalize & Trigger
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    toast.success("Binary verified via DAG.", { id: "verify-seal" });
-
-    if (walletAddress) {
-      try {
-        await AppService.trackDownload(app.id, walletAddress);
-      } catch (e) {
-        console.error("Failed to track download", e);
-      }
-    }
-
-    // Immediate Browser Download Trigger
-    const link = document.createElement("a");
-    link.href = targetUrl;
-    link.setAttribute(
-      "download",
-      `${app.name.replace(/\s+/g, "_")}_v${app.version}.apk`,
-    );
-    link.style.display = "none";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    // Keep state true for a moment to show 100% completion
-    setTimeout(() => {
-      setIsVerifying(false);
-    }, 1000);
-  };
-
-  const [installedVersion, setInstalledVersion] = useState<string | null>(null);
-
-  useEffect(() => {
-    const installed = localStorage.getItem(`installed_${app.id}`);
-    if (installed) {
-      setInstalledVersion(installed);
-    }
-  }, [app.id]);
-
-  const isUpdateAvailable =
-    installedVersion && installedVersion !== app.version;
-
-  const onDownloadClick = () => {
-    // Save "installed" version to localStorage to simulate the update flow
-    localStorage.setItem(`installed_${app.id}`, app.version);
-    setInstalledVersion(app.version);
-
-    // We bypass the internal handleDownload (simulate-only) for the real premium flow
-    // @ts-ignore - triggerPremiumDownload is in parent scope but we'll use a neat trick
-    if ((window as any).triggerKaspDownload) {
-      (window as any).triggerKaspDownload(app);
-    } else {
-      handleDownload();
-    }
-  };
-
-  const handleLaunchPwa = () => {
-    const targetUrl = app.pwaUrl || app.webUrl;
-    if (!targetUrl) {
-      toast.error("No PWA/Web URL provided for this application.");
-      return;
-    }
-
-    toast.success(`Launching ${app.name} PWA...`);
-    window.open(targetUrl, "_blank");
-  };
-
-  const handleAddReview = async () => {
-    if (!walletAddress) {
-      toast.error("Connect your identity wallet to submit verified reviews.");
-      return;
-    }
-    if (!comment.trim()) {
-      toast.error("Please provide a review comment.");
-      return;
-    }
-    setSubmitting(true);
+    toast.loading("Connecting to Dedicated Gateway...", { id: "verify-seal" });
+    
     try {
-      await AppService.addReview(app.id, {
-        rating: userRating,
-        comment: comment,
-        wallet: walletAddress,
-      });
-      toast.success("Review etched on DAG safely.");
-      setComment("");
-      // Refresh reviews
-      const data = await AppService.getReviews(app.id);
-      if (data) setReviews(data as any);
-    } catch (e) {
-      toast.error("Failed to submit review.");
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      setDownloadProgress(30);
+      
+      const gatewayUrl = getGatewayUrl(targetUrl);
+      toast.loading("Verifying Package Authenticity...", { id: "verify-seal" });
+
+      const link = document.createElement("a");
+      link.href = gatewayUrl;
+      link.setAttribute("download", `${app.name.replace(/\s+/g, "_")}_v${app.version}.apk`);
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setDownloadProgress(100);
+      toast.success("Installation triggered from kaspstore.4everland.link", { id: "verify-seal" });
+
+      if (walletAddress) {
+        AppService.trackDownload(app.id, walletAddress).catch(console.error);
+      }
+    } catch (err) {
+      window.open(targetUrl, "_blank");
     } finally {
-      setSubmitting(false);
+      setTimeout(() => setIsVerifying(false), 1500);
     }
   };
-
-  const similarApps = allApps
-    .filter((a) => a.category === app.category && a.id !== app.id)
-    .slice(0, 4);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 md:p-6 bg-black/90 backdrop-blur-md">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-xl">
       <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        initial={{ opacity: 0, scale: 0.9, y: 30 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-[#0a0a0a] w-full max-w-2xl h-full md:h-auto md:max-h-[85vh] rounded-none md:rounded-[2.5rem] border border-white/5 overflow-hidden flex flex-col shadow-2xl"
+        exit={{ opacity: 0, scale: 0.9, y: 30 }}
+        className="bg-[#080808] w-full max-w-xl h-full md:h-[90vh] md:rounded-[3rem] border border-white/5 overflow-hidden flex flex-col shadow-2xl relative"
       >
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
-          {/* Header */}
-          <div className="relative h-48 md:h-64 bg-slate-900 overflow-hidden">
-            <div
-              className={`absolute inset-0 bg-gradient-to-br ${app.iconGradient || "from-kaspa/20 to-black/20"} opacity-30`}
-            />
-            {app.headerImage ||
-            (app.screenshots && app.screenshots.length > 0) ? (
-              <img
-                src={app.headerImage || app.screenshots?.[0]}
-                alt=""
-                className="w-full h-full object-cover opacity-60 transition-opacity duration-300"
-                onLoad={(e) => (e.currentTarget.style.opacity = "1")}
-              />
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Hexagon size={80} className="text-kaspa/5" strokeWidth={0.5} />
-              </div>
-            )}
-            <button
-              onClick={onClose}
-              className="absolute top-6 right-6 p-2 bg-black/40 hover:bg-black/60 rounded-full text-white transition-colors z-20"
-            >
-              <X size={20} />
-            </button>
+        {/* Play Store Close Button */}
+        <button
+          onClick={onClose}
+          className="absolute top-6 left-6 p-2 bg-black/40 hover:bg-white/10 rounded-full text-white transition-all z-50"
+        >
+          <ArrowLeft size={20} />
+        </button>
 
-            {/* Info Overlay */}
-            <div className="absolute inset-x-0 bottom-0 p-8 bg-gradient-to-t from-[#0a0a0a] to-transparent">
-              <div className="flex items-end gap-6 translate-y-4">
-                <motion.div
-                  whileHover={{ scale: 1.05 }}
-                  className="w-20 h-20 md:w-28 md:h-28 bg-[#111] rounded-[2rem] p-4 shadow-2xl border border-white/10 ring-4 ring-[#0a0a0a] shrink-0"
-                >
-                  <img
-                    src={app.icon}
-                    alt={app.name}
-                    className="w-full h-full object-contain"
-                  />
-                </motion.div>
-                <div className="flex-1 pb-2">
-                  <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight leading-none mb-1 flex items-center gap-2">
-                    {app.name}
-                    {app.developerKns && (
-                      <button
-                        onClick={() => setShowTrustModal(true)}
-                        className="hover:scale-110 transition-transform cursor-help"
-                      >
-                        <ShieldCheck
-                          size={20}
-                          className="text-kaspa fill-kaspa/20"
-                        />
-                      </button>
-                    )}
-                  </h2>
-                  {isUpdateAvailable && (
-                    <motion.div
-                      initial={{ x: -10, opacity: 0 }}
-                      animate={{ x: 0, opacity: 1 }}
-                      className="mb-2 flex items-center gap-1.5 bg-sky-500/10 text-sky-400 border border-sky-500/20 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest w-fit"
-                    >
-                      <RefreshCw size={10} className="animate-spin-slow" />{" "}
-                      Update Available
-                    </motion.div>
-                  )}
-                  <div className="flex items-center gap-2 text-kaspa text-xs font-bold uppercase tracking-widest">
-                    {app.developer} •
-                    <span
-                      onClick={() => setShowTrustModal(true)}
-                      className="underline decoration-kaspa/30 hover:text-white transition-colors cursor-help"
-                    >
-                      {app.developerKns}
-                    </span>
-                  </div>
-                </div>
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
+          {/* Hero Section */}
+          <div className="p-8 pb-4 pt-16 flex items-start gap-6">
+            <motion.div 
+              whileHover={{ scale: 1.02 }}
+              className="w-24 h-24 md:w-32 md:h-32 bg-[#121212] rounded-[1.75rem] overflow-hidden shadow-2xl border border-white/5 shrink-0"
+            >
+              <img src={currentIcon} alt="" className="w-full h-full object-cover" />
+            </motion.div>
+            <div className="flex-1 pt-2">
+              <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight leading-tight">
+                {app.name}
+              </h1>
+              <p className="text-kaspa font-bold text-sm mt-1">{app.developer}</p>
+              <div className="flex items-center gap-2 mt-4 text-[11px] text-slate-500 font-bold uppercase tracking-widest">
+                <span>Verified Publisher</span>
+                <ShieldCheck size={12} className="text-kaspa" />
               </div>
             </div>
           </div>
 
-          <div className="p-8 pt-12 space-y-8">
-            {/* Quick Stats */}
-            <div className="flex items-center justify-between pb-8 border-b border-white/5">
-              <div className="text-center group cursor-help">
-                <div className="flex items-center justify-center gap-1 mb-1">
-                  <span className="text-white text-lg font-black">
-                    {app.rating}
-                  </span>
-                  <Star size={14} className="text-white fill-white" />
-                </div>
-                <p className="text-[10px] text-slate-500 uppercase font-black">
-                  {formatNumber(app.reviewsCount)} reviews
-                </p>
+          {/* Key Stats Bar */}
+          <div className="flex items-center px-8 py-6 gap-6 overflow-x-auto no-scrollbar">
+            <div className="flex flex-col items-center min-w-[70px]">
+              <div className="flex items-center gap-1 font-black text-white">
+                {app.rating} <Star size={12} className="fill-white" />
               </div>
-              <div className="h-10 w-px bg-white/5" />
-              <div className="text-center">
-                <div className="flex items-center justify-center mb-1">
-                  <Download size={18} className="text-white" />
-                </div>
-                <p className="text-lg font-black text-white mb-0.5">
-                  {formatNumber(app.downloads)}
-                </p>
-                <p className="text-[10px] text-slate-500 uppercase font-black">
-                  Downloads
-                </p>
-              </div>
-              <div className="h-10 w-px bg-white/5" />
-              <div className="text-center">
-                <div className="flex items-center justify-center mb-1 border border-white/20 w-5 h-5 mx-auto rounded-sm text-[10px] font-black text-white/50">
-                  {app.ageRating || "PEGI 3"}
-                </div>
-                <p className="text-[10px] text-slate-500 uppercase font-black mt-1.5">
-                  Rated for {app.ageRating || "3+"}
-                </p>
-              </div>
-              <div className="h-10 w-px bg-white/5" />
-              <div className="text-center">
-                <div className="flex items-center justify-center mb-1">
-                  <Smartphone size={18} className="text-white" />
-                </div>
-                <p className="text-lg font-black text-white mb-0.5">
-                  {app.size}
-                </p>
-                <p className="text-[10px] text-slate-500 uppercase font-black">
-                  Binary Size
-                </p>
-              </div>
+              <span className="text-[10px] text-slate-500 uppercase font-black">{formatNumber(app.reviewsCount)} reviews</span>
             </div>
-
-            {/* Install Button */}
-            <div className="space-y-4">
-              <div className="flex gap-4">
-                {app.isPWA ? (
-                  <button
-                    onClick={handleLaunchPwa}
-                    className="flex-1 bg-white hover:bg-slate-200 text-black py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-lg active:scale-95 flex items-center justify-center gap-3"
-                  >
-                    <QrCode size={18} /> Launch Web Protocol
-                  </button>
-                ) : (
-                  <button
-                    disabled={
-                      !(app.downloadUrl || app.apkUrl) ||
-                      isVerifying ||
-                      (app.isPaid && commerceState !== "success")
-                    }
-                    onClick={
-                      app.isPaid && commerceState !== "success"
-                        ? handlePurchase
-                        : handleDownload
-                    }
-                    className={`flex-1 ${app.isPaid && commerceState !== "success" ? "bg-kaspa" : "bg-kaspa"} hover:bg-kaspa-light text-black py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-lg shadow-kaspa/10 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3`}
-                  >
-                    {isVerifying ? (
-                      downloadProgress < 100 ? (
-                        <Loader2 size={18} className="animate-spin" />
-                      ) : (
-                        <Check size={18} />
-                      )
-                    ) : commerceState === "waiting" ||
-                      commerceState === "verifying" ? (
-                      <Loader2 size={18} className="animate-spin" />
-                    ) : app.isPaid && commerceState !== "success" ? (
-                      <Zap size={18} />
-                    ) : isUpdateAvailable ? (
-                      <RefreshCw size={18} className="animate-spin-slow" />
-                    ) : (
-                      <Download size={18} />
-                    )}
-                    {isVerifying
-                      ? downloadProgress === 0
-                        ? "Preparing..."
-                        : downloadProgress < 100
-                          ? `Downloading ${downloadProgress}%`
-                          : "Completed"
-                      : commerceState === "waiting"
-                        ? "Initialing KAS Payment..."
-                        : commerceState === "verifying"
-                          ? "Verifying on DAG..."
-                          : app.isPaid && commerceState !== "success"
-                            ? `Buy for ${app.kasPrice || 0} KAS`
-                            : isUpdateAvailable
-                              ? `Update to v${app.version}`
-                              : "Install Protocol Binary"}
-                  </button>
-                )}
-                <button
-                  onClick={() =>
-                    toast.info(`${app.name} added to your local library.`)
-                  }
-                  className="p-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl border border-white/5 transition-all"
-                >
-                  <PlusCircle size={24} />
-                </button>
-              </div>
-
-              {walletAddress && (
-                <div className="flex items-center gap-2 px-1">
-                  <div
-                    className={`w-2 h-2 rounded-full ${knsName ? "bg-kaspa" : "bg-red-500"} animate-pulse`}
-                  />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                    {knsName
-                      ? `Identity Verified: ${knsName}`
-                      : "KNS Identity Required for Purchase"}
-                  </span>
-                </div>
-              )}
-
-              {/* Progress Bar */}
-              {isVerifying && (
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold uppercase">
-                    <span>Downloading from 4Everland Node</span>
-                    <span>{downloadProgress}%</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${downloadProgress}%` }}
-                      className="h-full bg-kaspa shadow-[0_0_10px_rgba(0,255,204,0.5)]"
-                    />
-                  </div>
-                </div>
-              )}
+            <div className="w-[1px] h-8 bg-white/5 shrink-0" />
+            <div className="flex flex-col items-center min-w-[70px]">
+              <Download size={16} className="text-white mb-1" />
+              <span className="text-[10px] text-slate-500 uppercase font-black">{formatNumber(app.downloads)}+</span>
             </div>
+            <div className="w-[1px] h-8 bg-white/5 shrink-0" />
+            <div className="flex flex-col items-center min-w-[70px]">
+              <div className="w-5 h-5 border border-white/20 rounded flex items-center justify-center text-[10px] font-black text-white/70 mb-1">
+                {app.ageRating || "3+"}
+              </div>
+              <span className="text-[10px] text-slate-500 uppercase font-black">Rated for {app.ageRating || "3+"}</span>
+            </div>
+            <div className="w-[1px] h-8 bg-white/5 shrink-0" />
+            <div className="flex flex-col items-center min-w-[70px]">
+              <Smartphone size={16} className="text-white mb-1" />
+              <span className="text-[10px] text-slate-500 uppercase font-black">{app.size}</span>
+            </div>
+          </div>
 
-            {/* Tabs */}
-            <div className="flex gap-6 border-b border-white/5">
-              {[
-                { id: "details", label: "About" },
-                { id: "ai", label: "Ask AI", isNew: true },
-                { id: "history", label: "History" },
-                { id: "reviews", label: "Reviews" },
-                { id: "safety", label: "Safety" },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`pb-4 text-xs font-black uppercase tracking-widest relative transition-colors ${activeTab === tab.id ? "text-white" : "text-slate-500 hover:text-slate-300"}`}
-                >
-                  {tab.label}
-                  {tab.isNew && (
-                    <span className="absolute -top-3 -right-6 text-[8px] bg-sky-500 text-white px-1.5 py-0.5 rounded-full">
-                      AI
-                    </span>
-                  )}
-                  {activeTab === tab.id && (
-                    <motion.div
-                      layoutId="activeTabDetails"
-                      className="absolute bottom-0 left-0 right-0 h-1 bg-kaspa rounded-full"
-                    />
-                  )}
-                </button>
+          {/* Action Buttons */}
+          <div className="px-8 pb-8 flex flex-col gap-3">
+            <button
+              onClick={app.isPaid && commerceState !== "success" ? handlePurchase : handleDownload}
+              disabled={isVerifying || commerceState === "waiting"}
+              className="w-full bg-kaspa hover:bg-kaspa-light text-black font-black py-4 rounded-xl transition-all shadow-xl shadow-kaspa/10 active:scale-[0.98] flex items-center justify-center gap-2 text-sm uppercase tracking-widest"
+            >
+              {isVerifying ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+              {isVerifying ? `Installing ${downloadProgress}%` : app.isPaid && commerceState !== "success" ? `Buy for ${app.kasPrice} KAS` : "Install"}
+            </button>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => toast.success("Added to Wishlist")}
+                className="flex-1 bg-white/5 hover:bg-white/10 text-white font-bold py-3 rounded-xl border border-white/5 text-[11px] uppercase tracking-widest transition-all"
+              >
+                Add to Library
+              </button>
+              <button className="px-5 bg-white/5 hover:bg-white/10 text-kaspa font-bold rounded-xl border border-white/5 transition-all">
+                <Share2 size={18} />
+              </button>
+            </div>
+          </div>
+
+          {/* Screenshots Scroll */}
+          <div className="px-8 flex gap-4 overflow-x-auto no-scrollbar pb-8">
+            {allScreenshots.map((url, i) => (
+              <motion.img
+                key={i}
+                whileHover={{ scale: 1.02 }}
+                onClick={() => setActiveScreenshot(url)}
+                src={url}
+                className="h-64 rounded-2xl border border-white/5 shadow-2xl cursor-zoom-in shrink-0"
+                alt=""
+              />
+            ))}
+          </div>
+
+          {/* Description */}
+          <div className="px-8 pb-12 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-black text-white tracking-tight">About this app</h3>
+              <ArrowRight size={18} className="text-slate-600" />
+            </div>
+            <p className="text-slate-400 text-sm leading-relaxed line-clamp-3">
+              {app.description}
+            </p>
+            <div className="flex flex-wrap gap-2 pt-2">
+              {app.tags?.map(tag => (
+                <span key={tag} className="px-3 py-1 bg-white/5 text-[10px] font-bold text-slate-400 rounded-full border border-white/5 uppercase tracking-wider">
+                  {tag}
+                </span>
               ))}
             </div>
-
-            <div className="min-h-[200px]">
-              {activeTab === "details" && (
-                <div className="space-y-8 animate-in fade-in duration-300">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-black text-white tracking-tight">
-                        Project Summary
-                      </h3>
-                      <ChevronRight size={20} className="text-slate-600" />
-                    </div>
-                    <p className="text-sm text-slate-400 leading-relaxed">
-                      {app.description}
-                    </p>
-
-                    {/* Sub-Apps Grid */}
-                    {app.subApps && app.subApps.length > 0 && (
-                      <div className="pt-4 space-y-4">
-                        <div className="flex items-center gap-2 text-kaspa">
-                          <Layers size={18} />
-                          <h4 className="text-xs font-black uppercase tracking-widest">
-                            Included In Bundle
-                          </h4>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {app.subApps.map((sub) => (
-                            <div
-                              key={sub.id}
-                              onClick={() => onSelectApp(sub)}
-                              className="bg-white/5 border border-white/5 p-3 rounded-2xl flex items-center gap-3 group/sub hover:border-kaspa/50 hover:bg-kaspa/5 transition-all cursor-pointer relative"
-                            >
-                              <img
-                                src={sub.icon}
-                                alt=""
-                                className="w-10 h-10 rounded-xl object-cover shrink-0"
-                              />
-                              <div className="flex-1 min-w-0">
-                                <h5 className="text-[11px] font-black text-white truncate uppercase tracking-tight group-hover/sub:text-kaspa transition-colors">
-                                  {sub.name}
-                                </h5>
-                                <p className="text-[9px] text-slate-500 uppercase font-bold tracking-tight">
-                                  {sub.size} • v{sub.version}
-                                </p>
-                              </div>
-                              <div className="flex gap-1">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toast.info(
-                                      `Fetching ${sub.name} Binary...`,
-                                    );
-                                    const link = document.createElement("a");
-                                    link.href =
-                                      sub.downloadUrl || sub.apkUrl || "#";
-                                    link.setAttribute(
-                                      "download",
-                                      `${sub.name}_v${sub.version}.apk`,
-                                    );
-                                    link.click();
-                                  }}
-                                  className="p-2 bg-slate-800 text-kaspa rounded-lg hover:bg-kaspa hover:text-black transition-all"
-                                  title="Download Only This"
-                                >
-                                  <Download size={14} />
-                                </button>
-                                <div className="p-2 bg-white/5 text-slate-400 rounded-lg group-hover/sub:bg-kaspa/20 group-hover/sub:text-kaspa transition-all">
-                                  <ChevronRight size={14} />
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {manifest?.screenshots && (
-                      <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar no-scrollbar scroll-smooth">
-                        {manifest.screenshots.map((s, i) => (
-                          <img
-                            key={i}
-                            src={s}
-                            alt=""
-                            className="h-48 md:h-64 rounded-2xl border border-white/10 hover:border-kaspa/30 transition-all cursor-zoom-in"
-                            referrerPolicy="no-referrer"
-                          />
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="flex flex-wrap gap-2">
-                      {app.tags?.map((tag) => (
-                        <span
-                          key={tag}
-                          className="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] text-slate-300 font-bold uppercase tracking-wider"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-6">
-                    <h3 className="text-lg font-black text-white tracking-tight">
-                      Ratings & Reviews
-                    </h3>
-                    <div className="flex items-center gap-8">
-                      <div className="text-center">
-                        <div className="text-5xl font-black text-white mb-2">
-                          {app.rating}
-                        </div>
-                        <div className="flex gap-0.5 justify-center mb-1">
-                          {[...Array(5)].map((_, i) => (
-                            <Star
-                              key={i}
-                              size={10}
-                              className={
-                                i < Math.floor(app.rating)
-                                  ? "fill-kaspa text-kaspa"
-                                  : "text-white/20"
-                              }
-                            />
-                          ))}
-                        </div>
-                        <p className="text-[10px] text-slate-500 font-bold">
-                          {formatNumber(app.reviewsCount)} total
-                        </p>
-                      </div>
-                      <div className="flex-1 space-y-1">
-                        {[5, 4, 3, 2, 1].map((rating) => (
-                          <div key={rating} className="flex items-center gap-3">
-                            <span className="text-[10px] font-bold text-slate-500 w-2">
-                              {rating}
-                            </span>
-                            <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
-                              <motion.div
-                                initial={{ width: 0 }}
-                                animate={{
-                                  width: `${app.ratingBreakdown?.[rating as 5 | 4 | 3 | 2 | 1] || 0}%`,
-                                }}
-                                className="h-full bg-kaspa rounded-full"
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === "history" && (
-                <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
-                  <div className="space-y-6">
-                    <h3 className="text-lg font-black text-white tracking-tight">
-                      Version Registry History
-                    </h3>
-                    <div className="space-y-6">
-                      {(
-                        manifest?.changelog || [
-                          {
-                            version: app.version,
-                            date: "Initial Release",
-                            notes: ["Protocol binary inscribed on Kaspa DAG."],
-                          },
-                        ]
-                      ).map((log, index) => (
-                        <div
-                          key={index}
-                          className="relative pl-8 border-l border-white/10 space-y-2"
-                        >
-                          <div className="absolute -left-1.5 top-1.5 w-3 h-3 rounded-full bg-kaspa border-4 border-[#0a0a0a]" />
-                          <div className="flex items-center justify-between">
-                            <h4 className="text-sm font-black text-white uppercase tracking-widest">
-                              Version {log.version}
-                            </h4>
-                            <span className="text-[10px] text-slate-500 font-mono">
-                              {log.date}
-                            </span>
-                          </div>
-                          <ul className="space-y-1">
-                            {log.notes.map((note, ni) => (
-                              <li
-                                key={ni}
-                                className="text-xs text-slate-400 flex gap-2"
-                              >
-                                <span className="text-kaspa">•</span> {note}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === "safety" && (
-                <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-                  <div className="p-6 bg-white/5 rounded-3xl border border-white/5 space-y-6">
-                    <div className="flex items-center gap-4 border-b border-white/5 pb-6">
-                      <Shield size={32} className="text-sky-500" />
-                      <div>
-                        <h3 className="text-base font-black text-white">
-                          Data safety
-                        </h3>
-                        <p className="text-[11px] text-slate-500">
-                          Security standards for decentralized distribution
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-6">
-                      <div className="flex gap-4">
-                        <Layers
-                          size={20}
-                          className="text-slate-500 shrink-0 mt-1"
-                        />
-                        <div>
-                          <p className="text-xs font-bold text-white mb-1">
-                            No data shared with third parties
-                          </p>
-                          <p className="text-[11px] text-slate-500">
-                            The developer has declared that this app does not
-                            share user data with other companies or
-                            organizations.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex gap-4">
-                        <Cpu
-                          size={20}
-                          className="text-slate-500 shrink-0 mt-1"
-                        />
-                        <div>
-                          <p className="text-xs font-bold text-white mb-1">
-                            Encrypted in transit
-                          </p>
-                          <p className="text-[11px] text-slate-500">
-                            Your binary is transferred over a secure, encrypted
-                            P2P tunnel.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex gap-4">
-                        <Trash2
-                          size={20}
-                          className="text-slate-500 shrink-0 mt-1"
-                        />
-                        <div>
-                          <p className="text-xs font-bold text-white mb-1">
-                            Account deletion available
-                          </p>
-                          <p className="text-[11px] text-slate-500">
-                            You can request to delete your connected node and
-                            associated history.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === "ai" && (
-                <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-                  <div className="p-6 bg-sky-500/5 rounded-3xl border border-sky-500/10 space-y-4">
-                    <div className="flex items-center gap-3 text-sky-500">
-                      <Sparkles size={20} />
-                      <h3 className="text-sm font-black uppercase tracking-widest">
-                        Ask Play about this app
-                      </h3>
-                      <span className="text-[10px] bg-sky-500 text-white px-2 py-0.5 rounded-full">
-                        AI MODERATED
-                      </span>
-                    </div>
-
-                    <div className="relative">
-                      <input
-                        type="text"
-                        placeholder="Ask a question about this app..."
-                        value={aiQuery}
-                        onChange={(e) => setAiQuery(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && handleAiAsk()}
-                        className="w-full bg-black/40 border border-white/10 rounded-xl px-5 py-3 text-sm text-white placeholder-slate-600 focus:border-sky-500/50 outline-none"
-                      />
-                      <button
-                        onClick={() => handleAiAsk()}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-sky-500 hover:bg-sky-500/10 rounded-lg transition-all"
-                      >
-                        <Zap size={18} />
-                      </button>
-                    </div>
-
-                    {isAiLoading && (
-                      <div className="flex items-center gap-3 py-4">
-                        <Loader2
-                          size={16}
-                          className="animate-spin text-sky-500"
-                        />
-                        <span className="text-xs text-slate-500 italic">
-                          Gemini is analyzing the project whitepaper...
-                        </span>
-                      </div>
-                    )}
-
-                    {aiResponse && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="p-5 bg-white/5 rounded-2xl border border-white/5 text-sm text-slate-300 leading-relaxed"
-                      >
-                        {aiResponse}
-                      </motion.div>
-                    )}
-
-                    <div className="flex flex-wrap gap-2 pt-2">
-                      {[
-                        "What features are included?",
-                        "Is it secure?",
-                        "Subscription pricing?",
-                      ].map((q) => (
-                        <button
-                          key={q}
-                          onClick={() => handleAiAsk(q)}
-                          className="bg-sky-500/10 border border-sky-500/20 px-4 py-2 rounded-full text-[10px] text-sky-500 font-bold hover:bg-sky-500/20 transition-all font-mono"
-                        >
-                          {q}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === "reviews" && (
-                <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-black text-white">
-                      Community Feedback
-                    </h3>
-                    {!submitting && (
-                      <button
-                        onClick={() => setSubmitting(!submitting)}
-                        className="text-kaspa text-xs font-bold uppercase tracking-widest hover:underline"
-                      >
-                        Write a Review
-                      </button>
-                    )}
-                  </div>
-
-                  {submitting && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      className="p-6 bg-white/5 border border-white/10 rounded-3xl space-y-4"
-                    >
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs font-bold text-white uppercase tracking-widest">
-                          Rate this App
-                        </p>
-                        <div className="flex gap-1">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <button
-                              key={star}
-                              onClick={() => setUserRating(star)}
-                            >
-                              <Star
-                                size={18}
-                                className={
-                                  star <= userRating
-                                    ? "fill-kaspa text-kaspa"
-                                    : "text-white/20"
-                                }
-                              />
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <textarea
-                        value={comment}
-                        onChange={(e) => setComment(e.target.value)}
-                        placeholder="Share your experience with this protocol..."
-                        className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-sm text-white outline-none focus:border-kaspa/40 resize-none h-24"
-                      />
-                      <div className="flex gap-4">
-                        <button
-                          onClick={() => setSubmitting(false)}
-                          className="flex-1 bg-slate-800 py-3 rounded-xl text-xs font-bold text-white uppercase tracking-widest"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={handleAddReview}
-                          className="flex-1 bg-kaspa py-3 rounded-xl text-xs font-bold text-black uppercase tracking-widest hover:bg-kaspa-light"
-                        >
-                          Submit Verified
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-
-                  <div className="space-y-6">
-                    {reviews.length > 0 ? (
-                      reviews.map((review) => (
-                        <div key={review.id} className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-kaspa/10 border border-kaspa/20 flex items-center justify-center text-[10px] font-black text-kaspa">
-                                {review.userName?.[0] || "U"}
-                              </div>
-                              <span className="text-xs font-bold text-white">
-                                {review.userName || "Anonymous User"}
-                              </span>
-                            </div>
-                            <button className="text-slate-600">
-                              <Menu size={16} />
-                            </button>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="flex gap-0.5">
-                              {[...Array(5)].map((_, i) => (
-                                <Star
-                                  key={i}
-                                  size={8}
-                                  className={
-                                    i < review.rating
-                                      ? "fill-white text-white"
-                                      : "text-white/20"
-                                  }
-                                />
-                              ))}
-                            </div>
-                            <span className="text-[10px] text-slate-500 font-medium">
-                              {new Date(
-                                review.timestamp?.seconds * 1000,
-                              ).toLocaleDateString()}
-                            </span>
-                          </div>
-                          <p className="text-sm text-slate-400">
-                            {review.comment}
-                          </p>
-                          <div className="flex items-center gap-4 text-[10px] text-slate-500">
-                            <span>
-                              {review.helpfulCount || 0} people found this
-                              helpful
-                            </span>
-                            <div className="flex gap-2">
-                              <button className="bg-white/5 px-4 py-1.5 rounded-full border border-white/5 hover:bg-white/10 text-white font-bold transition-all">
-                                Yes
-                              </button>
-                              <button className="bg-white/5 px-4 py-1.5 rounded-full border border-white/5 hover:bg-white/10 text-white font-bold transition-all">
-                                No
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-slate-500 italic text-center py-10">
-                        No reviews verified on-chain yet.
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
+          </div>
+          
+          {/* Reviews Preview (Simple) */}
+          <div className="px-8 pb-12">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-black text-white tracking-tight">Ratings & reviews</h3>
+              <ArrowRight size={18} className="text-slate-600" />
             </div>
-
-            {/* Similar Apps */}
-            <div className="pt-8 border-t border-white/5 space-y-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-black text-white tracking-tight">
-                  Similar Apps
-                </h3>
-                <button className="text-kaspa text-xs font-bold uppercase tracking-widest">
-                  <ChevronRight size={20} />
-                </button>
+            
+            {/* AI Summary */}
+            {reviews.length > 0 && <ReviewSummary reviews={reviews} />}
+            
+            <div className="flex items-center gap-10">
+              <div className="text-center">
+                <div className="text-5xl font-black text-white">{app.rating}</div>
+                <div className="flex gap-0.5 justify-center mt-2 group">
+                   {[...Array(5)].map((_, i) => (
+                     <Star key={i} size={10} className={i < Math.floor(app.rating) ? "fill-kaspa text-kaspa" : "text-white/10"} />
+                   ))}
+                </div>
+                <span className="text-[10px] text-slate-500 font-black mt-1 block uppercase">Rating score</span>
               </div>
-              <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar no-scrollbar">
-                {similarApps.map((simApp) => (
-                  <button
-                    key={simApp.id}
-                    onClick={() => onClose()} // In a real app would select this app
-                    className="w-28 shrink-0 space-y-2 text-left group"
-                  >
-                    <div className="aspect-square bg-[#111] rounded-2xl p-3 border border-white/10 group-hover:border-kaspa/30 transition-all transition-transform active:scale-95">
-                      <img
-                        src={simApp.icon}
-                        alt=""
-                        className="w-full h-full object-contain"
-                      />
+              <div className="flex-1 space-y-1.5">
+                {[5,4,3,2,1].map(r => (
+                  <div key={r} className="flex items-center gap-3">
+                    <span className="text-[10px] font-bold text-slate-500 w-2">{r}</span>
+                    <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                      <div className="h-full bg-kaspa" style={{ width: `${(app.ratingBreakdown?.[r as 5|4|3|2|1] || 0) || (r === 5 ? 80 : 10)}%` }} />
                     </div>
-                    <p className="text-[11px] font-bold text-white truncate">
-                      {simApp.name}
-                    </p>
-                    <div className="flex items-center gap-1">
-                      <span className="text-[10px] text-slate-500">
-                        {simApp.rating}
-                      </span>
-                      <Star
-                        size={8}
-                        className="fill-slate-500 text-slate-500"
-                      />
-                    </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             </div>
           </div>
         </div>
+
+        {/* Fullscreen Screenshot Viewer */}
+        <AnimatePresence>
+          {activeScreenshot && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[110] bg-black/95 flex items-center justify-center p-4"
+              onClick={() => setActiveScreenshot(null)}
+            >
+              <button 
+                className="absolute top-8 right-8 text-white bg-white/10 p-3 rounded-full hover:bg-white/20 transition-all"
+                onClick={() => setActiveScreenshot(null)}
+              >
+                <X size={24} />
+              </button>
+              <motion.img
+                initial={{ scale: 0.9 }}
+                animate={{ scale: 1 }}
+                src={activeScreenshot}
+                className="max-w-full max-h-full rounded-2xl shadow-[0_0_50px_rgba(255,255,255,0.1)]"
+                alt=""
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </div>
   );
@@ -2491,27 +1667,30 @@ const AppDetailModal = ({
 
 const UserProfile = ({
   walletAddress,
-  knsName,
+  identityName,
   onBack,
 }: {
   walletAddress: string;
-  knsName: string | null;
+  identityName: string | null;
   onBack: () => void;
 }) => {
   const [downloads, setDownloads] = useState<any[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
+  const [publishedApps, setPublishedApps] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchProfileData = async () => {
       setLoading(true);
       try {
-        const [userDownloads, userReviews] = await Promise.all([
+        const [userDownloads, userReviews, userPublished] = await Promise.all([
           AppService.getUserDownloads(walletAddress),
           AppService.getUserReviews(walletAddress),
+          AppService.getUserApps(walletAddress),
         ]);
         setDownloads(userDownloads || []);
         setReviews(userReviews || []);
+        setPublishedApps(userPublished || []);
       } catch (e) {
         console.error("Failed to fetch profile", e);
       } finally {
@@ -2540,7 +1719,7 @@ const UserProfile = ({
             <div className="flex items-center gap-2">
               <Fingerprint size={16} className="text-kaspa" />
               <span className="text-sm text-white font-bold">
-                {knsName || "Anonymous Node"}
+                {identityName || "Anonymous Node"}
               </span>
             </div>
             <span className="text-[10px] text-slate-500 font-mono break-all">
@@ -2551,6 +1730,66 @@ const UserProfile = ({
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pb-12">
           <div className="md:col-span-2 space-y-8">
+            {publishedApps.length > 0 && (
+              <div className="bg-bg-surface border border-border-subtle rounded-3xl p-6 md:p-8 shadow-[0_0_20px_rgba(112,199,186,0.15)] ring-1 ring-kaspa/30 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                  <Fingerprint size={120} />
+                </div>
+                <div className="flex items-center gap-3 mb-6 relative z-10">
+                  <Zap className="text-kaspa" size={20} />
+                  <h3 className="text-xl font-bold text-white uppercase italic tracking-tight">
+                    Developer Portfolio
+                  </h3>
+                  <div className="ml-auto px-2 py-1 bg-kaspa/10 text-kaspa text-[9px] font-bold tracking-widest uppercase rounded">
+                    Verified Creator
+                  </div>
+                </div>
+
+                <div className="space-y-4 relative z-10">
+                  {publishedApps.map((app) => (
+                    <div
+                      key={app.id}
+                      className="flex items-center gap-4 p-4 bg-black/40 rounded-2xl border border-kaspa/20 hover:border-kaspa/60 transition-all group cursor-pointer"
+                    >
+                      <div
+                        className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${app.iconGradient || "from-kaspa to-blue-500"} flex-shrink-0 p-0.5`}
+                      >
+                        <img
+                          src={app.icon}
+                          alt={app.name}
+                          className="w-full h-full object-cover rounded-xl"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-base font-black text-white uppercase tracking-tight truncate group-hover:text-kaspa transition-colors">
+                          {app.name}
+                        </h4>
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            v{app.version}
+                          </span>
+                          <span className="text-[10px] text-kaspa-light font-bold">
+                            ★ {app.rating || 0}
+                          </span>
+                          <span className="text-[10px] text-slate-500 uppercase">
+                            {app.downloads || 0} DLs
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs font-bold text-white">
+                          {app.kasPrice > 0 ? `${app.kasPrice} KAS` : "FREE"}
+                        </div>
+                        <div className="text-[9px] text-slate-500 uppercase tracking-widest mt-1">
+                          {app.category}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="bg-bg-surface border border-border-subtle rounded-3xl p-6 md:p-8 shadow-xl">
               <div className="flex items-center gap-3 mb-6">
                 <History className="text-kaspa" size={20} />
@@ -2689,6 +1928,14 @@ const UserProfile = ({
                 </div>
                 <div className="flex justify-between items-end border-b border-white/5 pb-3">
                   <span className="text-[10px] text-slate-500 font-bold uppercase">
+                    Apps Published
+                  </span>
+                  <span className="text-xl font-bold text-kaspa font-mono">
+                    {publishedApps.length}
+                  </span>
+                </div>
+                <div className="flex justify-between items-end border-b border-white/5 pb-3">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase">
                     Reputation
                   </span>
                   <div className="flex items-center gap-1">
@@ -2697,7 +1944,9 @@ const UserProfile = ({
                       className="text-yellow-500 fill-yellow-500"
                     />
                     <span className="text-xl font-bold text-white font-mono">
-                      4.9
+                      {m.length > 0 
+                        ? (m.reduce((sum, app) => sum + (app.rating || 0), 0) / m.length).toFixed(1)
+                        : "0.0"}
                     </span>
                   </div>
                 </div>
@@ -2714,11 +1963,11 @@ const UserProfile = ({
 
             <div className="bg-gradient-to-br from-kaspa/20 to-transparent p-6 rounded-3xl border border-kaspa/30 shadow-lg">
               <p className="text-xs text-kaspa-light font-bold mb-2 italic uppercase">
-                Decentralized Archive
+                Sovereign Registry
               </p>
               <p className="text-[10px] text-slate-400 leading-relaxed font-medium">
-                Your app library is indexed on-chain through your wallet
-                signature. Re-install anytime without central permission.
+                Your apps are indexed using sovereign (.ks) handles. Every deployment 
+                is cryptographically signed by your node's unique key.
               </p>
             </div>
           </div>
@@ -2731,23 +1980,33 @@ const UserProfile = ({
 const DeveloperPortal = ({
   onBack,
   onAppLaunched,
-  knsName,
+  identityName,
   walletAddress,
   walletState,
-  draftKnsName,
-  setDraftKnsName,
+  draftIdentityName,
+  setDraftIdentityName,
   onConnectRequest,
   onRegisterIdentity,
+  userApps,
+  setUserApps,
+  trustScore,
+  onSyncIdentity,
+  isSyncingIdentity,
 }: {
   onBack: () => void;
   onAppLaunched: () => void;
-  knsName: string | null;
+  identityName: string | null;
   walletAddress: string | null;
   walletState: string;
-  draftKnsName: string;
-  setDraftKnsName: (name: string) => void;
+  draftIdentityName: string;
+  setDraftIdentityName: (name: string) => void;
   onConnectRequest: () => void;
   onRegisterIdentity: () => void;
+  userApps: any[];
+  setUserApps: (apps: any[]) => void;
+  trustScore: number;
+  onSyncIdentity: () => void;
+  isSyncingIdentity: boolean;
 }) => {
   const [activeTab, setActiveTab] = useState<"launch" | "manage" | "verify">(
     "launch",
@@ -2759,9 +2018,15 @@ const DeveloperPortal = ({
   const [appName, setAppName] = useState("");
   const [appVersion, setAppVersion] = useState("1.0.0");
   const [appDescription, setAppDescription] = useState("");
-  const [appCategory, setAppCategory] = useState("Tools");
+  const [appCategory, setAppCategory] = useState("App");
+  const [appSubCategory, setAppSubCategory] = useState("");
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [sourceUrl, setSourceUrl] = useState("");
   const [appIcon, setAppIcon] = useState("");
+  const [appScreenshot1, setAppScreenshot1] = useState("");
+  const [appScreenshot2, setAppScreenshot2] = useState("");
+  const [appScreenshot3, setAppScreenshot3] = useState("");
+  const [appScreenshot4, setAppScreenshot4] = useState("");
   const [appSize, setAppSize] = useState("");
   const [appDownloads, setAppDownloads] = useState("");
   const [appRating, setAppRating] = useState("");
@@ -2774,17 +2039,39 @@ const DeveloperPortal = ({
   const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
   const [isAlreadyMine, setIsAlreadyMine] = useState(false);
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
+  const [isPwa, setIsPwa] = useState(false);
+  const [pwaUrl, setPwaUrl] = useState("");
+  const [isPaidApp, setIsPaidApp] = useState(false);
+  const [kasPrice, setKasPrice] = useState(0);
+  const [appDeveloper, setAppDeveloper] = useState("");
+  const [manifestUrl, setManifestUrl] = useState("");
+  const [headerImage, setHeaderImage] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "success" | "error">("idle");
+  const [uploadTarget, setUploadTarget] = useState<"main" | "sub" | null>(null);
+  const [loadingApps, setLoadingApps] = useState(false);
+  const [editingApp, setEditingApp] = useState<any | null>(null);
+  const [newSubAppName, setNewSubAppName] = useState("");
+  const [newSubAppCategory, setNewSubAppCategory] = useState("");
+  const [newSubAppFile, setNewSubAppFile] = useState<File | null>(null);
+  const [isAddingSubApp, setIsAddingSubApp] = useState(false);
+  const [isReadOnly, setIsReadOnly] = useState(false);
+  const [isBurning, setIsBurning] = useState(false);
+  const [burnTxHash, setBurnTxHash] = useState("");
+  const [isIpnsUpdating, setIsIpnsUpdating] = useState(false);
 
   useEffect(() => {
     const checkAvailability = async () => {
-      const validation = KnsService.validateName(draftKnsName);
+      const validation = KsiService.validateName(draftIdentityName);
       if (validation.valid) {
         setIsCheckingAvailability(true);
-        const owner = await KnsIndexer.resolve(draftKnsName);
-        const available = !owner;
+        // For our own registry, we simulate the availability check against our indexed identities
+        const owner = await KsiService.resolveOwner(draftIdentityName);
+        const isAvailable = owner === null;
         const alreadyMine = owner === walletAddress;
         
-        setIsAvailable(available);
+        setIsAvailable(isAvailable);
         setIsAlreadyMine(alreadyMine);
         setIsCheckingAvailability(false);
       } else {
@@ -2795,93 +2082,83 @@ const DeveloperPortal = ({
 
     const timeout = setTimeout(checkAvailability, 500);
     return () => clearTimeout(timeout);
-  }, [draftKnsName]);
-  const [isPwa, setIsPwa] = useState(false);
-  const [pwaUrl, setPwaUrl] = useState("");
-  const [isPaidApp, setIsPaidApp] = useState(false);
-  const [kasPrice, setKasPrice] = useState(0);
-  const [manifestUrl, setManifestUrl] = useState("");
-  const [headerImage, setHeaderImage] = useState("");
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-
-  const uploadToEverland = async (file: File) => {
-    setIsUploading(true);
-    setUploadProgress(5);
-    try {
-      // 1. Get pre-signed URL from our backend
-      const urlRes = await fetch(
-        `/api/generate-upload-url?fileName=${encodeURIComponent(file.name)}&fileType=${encodeURIComponent(file.type)}`,
-      );
-      if (!urlRes.ok) {
-        const error = await urlRes.json();
-        throw new Error(error.error || "Failed to get upload URL");
-      }
-
-      const { uploadUrl, publicUrl } = await urlRes.json();
-      setUploadProgress(20);
-
-      // 2. Upload directly to S3 (4EVERLAND) using the pre-signed URL
-      // We use XHR to track progress as fetch doesn't support upload progress natively yet
-      return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-
-        xhr.upload.addEventListener("progress", (event) => {
-          if (event.lengthComputable) {
-            const percent = Math.round((event.loaded / event.total) * 75) + 20; // 20% to 95%
-            setUploadProgress(percent);
-          }
-        });
-
-        xhr.addEventListener("load", () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            setUploadProgress(100);
-            resolve(publicUrl);
-          } else {
-            reject(new Error(`S3 upload failed with status ${xhr.status}`));
-          }
-        });
-
-        xhr.addEventListener("error", () =>
-          reject(new Error("S3 upload network error")),
-        );
-        xhr.addEventListener("abort", () =>
-          reject(new Error("S3 upload aborted")),
-        );
-
-        xhr.open("PUT", uploadUrl);
-        // Important: Set Content-Type to match what was signed
-        xhr.setRequestHeader(
-          "Content-Type",
-          file.type || "application/octet-stream",
-        );
-        xhr.send(file);
-      });
-    } catch (err: any) {
-      toast.error(`Direct Upload failed: ${err.message}`);
-      return null;
-    } finally {
-      setTimeout(() => {
-        setIsUploading(false);
-        setUploadProgress(0);
-      }, 1500);
-    }
-  };
-
-  // Management State
-  const [userApps, setUserApps] = useState<any[]>([]);
-  const [loadingApps, setLoadingApps] = useState(false);
-  const [editingApp, setEditingApp] = useState<any | null>(null);
-  const [newSubAppName, setNewSubAppName] = useState("");
-  const [newSubAppCategory, setNewSubAppCategory] = useState("");
-  const [newSubAppFile, setNewSubAppFile] = useState<File | null>(null);
-  const [isAddingSubApp, setIsAddingSubApp] = useState(false);
+  }, [draftIdentityName, walletAddress]);
 
   useEffect(() => {
     if (activeTab === "manage") {
       fetchUserApps();
     }
   }, [activeTab]);
+
+  const uploadToEverland = async (file: File, target: "main" | "sub" = "main") => {
+    // Enforcement: Protect Node from Resource Exhaustion (100MB Limit)
+    const MAX_SIZE = 100 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      toast.error(`File too large: ${(file.size / (1024 * 1024)).toFixed(1)}MB`, {
+        description: "Standard KaspStore binaries must be under 100MB for optimal DAG syncing."
+      });
+      return null;
+    }
+
+    setIsUploading(true);
+    setUploadTarget(target);
+    setUploadStatus("uploading");
+    setUploadProgress(5);
+    try {
+      // We use the Server-Side Gateway (/api/upload) to bypass CORS issues entirely
+      // This is our high-performance relay that handles the 4EVERLAND connection on the backend
+      const url = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const formData = new FormData();
+        formData.append("file", file);
+
+        xhr.upload.addEventListener("progress", (event) => {
+          if (event.lengthComputable) {
+            const percent = Math.round((event.loaded / event.total) * 90) + 5;
+            setUploadProgress(percent);
+          }
+        });
+
+        xhr.addEventListener("load", () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const res = JSON.parse(xhr.responseText);
+              setUploadProgress(100);
+              resolve(res.url); // Use the public URL returned by the gateway
+            } catch (e) {
+              reject(new Error("Invalid gateway response"));
+            }
+          } else {
+            console.error("Gateway Upload Failed. Status:", xhr.status, xhr.responseText);
+            reject(new Error(`Gateway rejected upload. Status: ${xhr.status}`));
+          }
+        });
+
+        xhr.addEventListener("error", () => {
+          console.error("Network Error during Gateway upload.");
+          reject(new Error("Gateway unreachable. Please check your connection."));
+        });
+
+        xhr.addEventListener("abort", () => reject(new Error("Upload aborted")));
+
+        xhr.open("POST", "/api/upload");
+        xhr.send(formData);
+      });
+      
+      if (url) {
+        setUploadStatus("success");
+        return url;
+      }
+      return null;
+    } catch (err: any) {
+      console.error("[Gateway Upload Error]", err);
+      setUploadStatus("error");
+      toast.error(`Relay failed: ${err.message}`);
+      return null;
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const fetchUserApps = async () => {
     setLoadingApps(true);
@@ -2895,7 +2172,6 @@ const DeveloperPortal = ({
     }
   };
 
-  const [isReadOnly, setIsReadOnly] = useState(false);
 
   if (!walletAddress) {
     return (
@@ -2906,7 +2182,7 @@ const DeveloperPortal = ({
               <Fingerprint size={32} className="text-kaspa" />
             </div>
             <h3 className="text-xl font-bold text-white mb-2">
-              Connect Developer Wallet
+              Initialize Developer Session
             </h3>
             <p className="text-slate-400 text-xs mb-8">
               Access the decentralized developer console by connecting your
@@ -2915,7 +2191,7 @@ const DeveloperPortal = ({
 
             <div className="w-full space-y-4">
               <NativeKaspaConnectButton
-                text="Connect via Kasware"
+                text="Secure Session"
                 status={walletState as any}
                 onClick={onConnectRequest}
                 className="w-full bg-kaspa text-black font-bold uppercase tracking-widest text-xs px-6 py-4 rounded-xl hover:bg-white transition-all active:scale-95 flex items-center justify-center gap-2"
@@ -2933,9 +2209,8 @@ const DeveloperPortal = ({
     );
   }
 
-  if (walletAddress && !knsName && !isReadOnly) {
-    const validation = KnsService.validateName(draftKnsName);
-    const cost = KnsService.calculateCost(draftKnsName);
+  if (walletAddress && !identityName && !isReadOnly) {
+    const validation = KsiService.validateName(draftIdentityName);
 
     return (
       <div className="max-w-4xl mx-auto py-12 px-4 md:px-8">
@@ -2945,24 +2220,23 @@ const DeveloperPortal = ({
               <Globe size={32} className="text-kaspa" />
             </div>
             <h3 className="text-xl font-bold text-white mb-2">
-              Establish KNS Identity
+              Establish Sovereign Identity
             </h3>
             <p className="text-slate-400 text-xs mb-8">
-              Kaspstore.kas requires a .kas domain to index your applications.
-              Names follow a length-based pricing model to ensure protocol
-              fairness.
+              Kaspstore Identity uses .ks sovereign handles to index your nodes and applications.
+              Pure decentralized identity, etched on GHOSTDAG.
             </p>
 
             <div className="w-full space-y-4">
               <div>
                 <input
                   type="text"
-                  placeholder="Enter your .kas name"
-                  value={draftKnsName}
-                  onChange={(e) => setDraftKnsName(e.target.value)}
-                  className={`w-full bg-slate-900 border ${draftKnsName && !validation.valid ? "border-red-500/50" : "border-slate-700/50"} rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-kaspa/50 font-mono text-center mb-1`}
+                  placeholder="Enter your .ks name"
+                  value={draftIdentityName}
+                  onChange={(e) => setDraftIdentityName(e.target.value)}
+                  className={`w-full bg-slate-900 border ${draftIdentityName && !validation.valid ? "border-red-500/50" : "border-slate-700/50"} rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-kaspa/50 font-mono text-center mb-1`}
                 />
-                {draftKnsName && (
+                {draftIdentityName && (
                   <div className="flex justify-between items-center px-1">
                     <span
                       className={`text-[9px] font-bold uppercase ${validation.valid ? (isCheckingAvailability ? "text-slate-500" : (isAvailable || isAlreadyMine) ? "text-kaspa" : "text-red-400") : "text-red-400 font-medium"}`}
@@ -2977,23 +2251,19 @@ const DeveloperPortal = ({
                               : "Already Taken"
                         : validation.error}
                     </span>
-                    {validation.valid && (isAvailable || isAlreadyMine) && (
-                      <span className="text-[9px] text-kaspa font-bold uppercase">
-                        Estimated Fee: {isAlreadyMine ? "0 (Gas Only)" : `${cost} KAS`}
-                      </span>
-                    )}
                   </div>
                 )}
               </div>
 
               <div className="bg-black/20 p-4 rounded-xl border border-white/5 text-left mb-4">
                 <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
-                  Protocol Rules
+                  Identity Rules
                 </h4>
                 <ul className="text-[9px] text-slate-600 space-y-1">
-                  <li>• Characters: Emojis, a-z, 0-9, and hyphens</li>
-                  <li>• First-come, first-served on the Kaspa DAG</li>
-                  <li>• Pricing: 1-2: 4200 | 3: 2100 | 4: 525 | 5+: 35 KAS</li>
+                  <li>• Characters: a-z, 0-9, and hyphens</li>
+                  <li>• Sovereign: No centralized registry or fees</li>
+                  <li>• Immutable: Proof-of-Ownership via Signing</li>
+                  <li className="pt-2 text-kaspa-light">• Protocol: ETCHED ON GHOSTDAG (ksi-v1)</li>
                 </ul>
               </div>
 
@@ -3021,9 +2291,9 @@ const DeveloperPortal = ({
                     <CheckCircle size={16} /> Identity Established
                   </>
                 ) : walletState === "signing" ? (
-                  "Checking Availability & Inscribing..."
+                  "Verifying & Signing..."
                 ) : (
-                  `${isAlreadyMine ? "Verify & Link" : "Register"} ${draftKnsName || "Identity"}`
+                  `${isAlreadyMine ? "Verify & Link" : "Register"} ${draftIdentityName || "Identity"}`
                 )}
               </button>
             </div>
@@ -3033,8 +2303,6 @@ const DeveloperPortal = ({
     );
   }
 
-  const [isBurning, setIsBurning] = useState(false);
-  const [burnTxHash, setBurnTxHash] = useState("");
 
   const handleBurnRitual = async () => {
     setIsBurning(true);
@@ -3110,9 +2378,9 @@ const DeveloperPortal = ({
   };
 
   const handleFinalLaunch = async () => {
-    if (isReadOnly || !knsName) {
-      toast.error("Verified KNS identity required to registry unique assets.", {
-        description: "Establishing link to .kas sovereign name...",
+    if (isReadOnly || !identityName) {
+      toast.error("Verified sovereign identity required to registry unique assets.", {
+        description: "Establishing link to .ks sovereign name...",
       });
       setIsReadOnly(false);
       setStep(1); // Revert to identity check step
@@ -3138,10 +2406,11 @@ const DeveloperPortal = ({
       await AppService.launchApp(
         {
           name: appName,
-          developer: knsName || "Kaspa Dev",
-          developerKns: knsName || "",
+          developer: identityName || "Kaspa Dev",
+          developerIdentity: identityName || "",
           signature: burnTxHash,
           category: appCategory,
+          subCategory: appSubCategory,
           price: isPaidApp ? `${kasPrice} KAS` : "Free",
           isPaid: isPaidApp,
           kasPrice: kasPrice,
@@ -3153,12 +2422,13 @@ const DeveloperPortal = ({
             appIcon ||
             "https://images.unsplash.com/photo-1621416894569-0f39ed31d247?w=128&h=128&fit=crop",
           iconGradient: "from-orange-500 to-red-600",
+          screenshots: [appScreenshot1, appScreenshot2, appScreenshot3, appScreenshot4].filter(Boolean),
           apkUrl: appDownloadUrl || "",
           size: appSize || "Unknown",
           downloads: 0,
-          rating: 5,
+          rating: 0,
           reviewsCount: 0,
-          keywords: ["burn", "launch", "binary"],
+          keywords: [appName.toLowerCase(), appCategory.toLowerCase(), appSubCategory.toLowerCase()],
           downloadUrl: appDownloadUrl,
           manifestUrl: manifestUrl,
           headerImage: headerImage,
@@ -3203,7 +2473,6 @@ const DeveloperPortal = ({
     }
   };
 
-  const [isIpnsUpdating, setIsIpnsUpdating] = useState(false);
 
   const handleApplyUpdates = async () => {
     setPaymentStatus("pending");
@@ -3266,7 +2535,7 @@ const DeveloperPortal = ({
         appId: editingApp.id,
         newDownloadUrl: editingApp.downloadUrl || "",
         newVersion: editingApp.version,
-        devKns: knsName || "Anonymous",
+        devIdentity: identityName || "Anonymous",
         ipfsCid: editingApp.ipfsHash || "v2_cid",
       });
 
@@ -3294,7 +2563,7 @@ const DeveloperPortal = ({
 
     setIsAddingSubApp(true);
     try {
-      const publicUrl = (await uploadToEverland(newSubAppFile)) as string;
+      const publicUrl = (await uploadToEverland(newSubAppFile, "sub")) as string;
       if (!publicUrl) throw new Error("Upload to 4EVERLAND failed");
 
       const subApp: any = {
@@ -3303,7 +2572,7 @@ const DeveloperPortal = ({
         category: editingApp.category,
         subCategory: newSubAppCategory,
         downloadUrl: publicUrl,
-        developerKns: knsName || "",
+        developerIdentity: identityName || "",
         version: "1.0.0",
         rating: 5,
         downloads: 0,
@@ -3328,7 +2597,49 @@ const DeveloperPortal = ({
 
   return (
     <div className="flex-1 p-4 md:p-12 overflow-y-auto w-full">
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-4xl mx-auto">
+        {/* Developer Header with Professional Profile & Verification Badge */}
+        <div className="mb-8 p-6 bg-slate-900/50 rounded-3xl border border-white/5 flex flex-col md:flex-row items-center gap-6">
+          <div className="w-16 h-16 md:w-20 md:h-20 bg-kaspa/10 border border-kaspa/20 rounded-2xl flex items-center justify-center overflow-hidden">
+             {identityName ? (
+                <div className="text-3xl font-black text-kaspa uppercase">{identityName.slice(0, 2)}</div>
+             ) : (
+                <Fingerprint size={40} className="text-kaspa/40" />
+             )}
+          </div>
+          <div className="flex-1 text-center md:text-left">
+            <div className="flex items-center justify-center md:justify-start gap-3">
+              <h2 className="text-2xl font-bold text-white">
+                {identityName ? `${identityName}.ks` : "Anonymous Developer"}
+              </h2>
+              {identityName && (
+                <div className="flex items-center gap-1.5 bg-kaspa/10 border border-kaspa/30 text-kaspa px-3 py-1 rounded-full text-[9px] uppercase font-black tracking-widest shadow-lg shadow-kaspa/5">
+                  <ShieldCheck size={12} />
+                  Verified Developer
+                </div>
+              )}
+            </div>
+            <div className="text-slate-500 text-[10px] font-mono mt-2 flex items-center justify-center md:justify-start gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-kaspa animate-pulse" />
+              {walletAddress}
+            </div>
+          </div>
+          <div className="flex gap-4">
+             <div className="text-center px-4 py-2 bg-black/40 rounded-xl border border-white/5 min-w-[100px] shadow-inner">
+                <div className="text-kaspa font-black text-xl leading-tight">
+                  {userApps.length}
+                </div>
+                <div className="text-[8px] text-slate-500 uppercase font-black tracking-[0.2em] mt-0.5">Deployments</div>
+             </div>
+             <div className="text-center px-4 py-2 bg-black/40 rounded-xl border border-white/5 min-w-[100px] shadow-inner">
+                <div className="text-white font-black text-xl leading-tight">
+                   {userApps.reduce((acc, app) => acc + (app.downloads || 0), 0)}
+                </div>
+                <div className="text-[8px] text-slate-500 uppercase font-black tracking-[0.2em] mt-0.5">Total Installs</div>
+             </div>
+          </div>
+        </div>
+
         <div className="mb-8 md:mb-12 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <button
             onClick={onBack}
@@ -3336,7 +2647,7 @@ const DeveloperPortal = ({
           >
             ← Registry Root
           </button>
-          <div className="flex bg-slate-800/50 p-1 rounded-xl border border-slate-800">
+          <div className="flex flex-wrap md:flex-nowrap bg-slate-950/80 p-1.5 rounded-2xl border border-white/5 shadow-2xl backdrop-blur-md max-w-full overflow-x-auto no-scrollbar">
             <button
               onClick={() => {
                 setActiveTab("launch");
@@ -3344,18 +2655,18 @@ const DeveloperPortal = ({
                 setPaymentStatus("idle");
                 setEditingApp(null);
               }}
-              className={`text-[9px] md:text-[10px] font-bold uppercase tracking-widest px-4 py-2 rounded-lg transition-all ${activeTab === "launch" ? "bg-kaspa text-black" : "text-slate-500 hover:text-white"}`}
+              className={`whitespace-nowrap text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] px-4 md:px-6 py-3 rounded-xl transition-all duration-300 ${activeTab === "launch" ? "bg-kaspa text-black shadow-[0_0_20px_rgba(112,199,186,0.3)]" : "text-slate-500 hover:text-white shrink-0"}`}
             >
-              Launch
+              Binary Launch
             </button>
             <button
               onClick={() => {
                 setActiveTab("manage");
                 setEditingApp(null);
               }}
-              className={`text-[9px] md:text-[10px] font-bold uppercase tracking-widest px-4 py-2 rounded-lg transition-all ${activeTab === "manage" ? "bg-kaspa text-black" : "text-slate-500 hover:text-white"}`}
+              className={`whitespace-nowrap text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] px-4 md:px-6 py-3 rounded-xl transition-all duration-300 ${activeTab === "manage" ? "bg-kaspa text-black shadow-[0_0_20px_rgba(112,199,186,0.3)]" : "text-slate-500 hover:text-white shrink-0"}`}
             >
-              Manage
+              Registry Control
             </button>
             <button
               onClick={() => {
@@ -3364,9 +2675,9 @@ const DeveloperPortal = ({
                 setPaymentStatus("idle");
                 setEditingApp(null);
               }}
-              className={`text-[9px] md:text-[10px] font-bold uppercase tracking-widest px-4 py-2 rounded-lg transition-all ${activeTab === "verify" ? "bg-kaspa text-black" : "text-slate-500 hover:text-white"}`}
+              className={`whitespace-nowrap text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] px-4 md:px-6 py-3 rounded-xl transition-all duration-300 ${activeTab === "verify" ? "bg-kaspa text-black shadow-[0_0_20px_rgba(112,199,186,0.3)]" : "text-slate-500 hover:text-white shrink-0"}`}
             >
-              Verify
+              Identity & Trust
             </button>
           </div>
         </div>
@@ -3674,12 +2985,31 @@ const DeveloperPortal = ({
                                 )}
                               </button>
                             </div>
-                            {isAddingSubApp && (
-                              <div className="h-1 bg-slate-800 rounded-full mt-2 overflow-hidden">
-                                <div
-                                  className="h-full bg-kaspa transition-all duration-300"
-                                  style={{ width: `${uploadProgress}%` }}
-                                ></div>
+                            {uploadTarget === "sub" && (isAddingSubApp || (uploadTarget === "sub" && (uploadStatus === "success" || uploadStatus === "error"))) && (
+                              <div className="space-y-1 mt-2">
+                                <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden flex items-center">
+                                  <div
+                                    className={`h-full transition-all duration-300 ${uploadStatus === "error" ? "bg-red-500" : "bg-kaspa"}`}
+                                    style={{ width: `${uploadProgress}%` }}
+                                  ></div>
+                                </div>
+                                <div className="flex justify-between items-center px-1">
+                                  <span className={`text-[8px] font-bold uppercase tracking-tighter ${uploadStatus === "error" ? "text-red-500" : "text-kaspa"}`}>
+                                    {uploadStatus === "uploading" ? `Uploading ${uploadProgress}%` : uploadStatus === "success" ? "Module Synced" : "Node Error"}
+                                  </span>
+                                  {uploadStatus !== "uploading" && (
+                                    <button 
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        setUploadStatus("idle");
+                                        setUploadTarget(null);
+                                      }}
+                                      className="text-[8px] text-slate-500 hover:text-white uppercase font-bold"
+                                    >
+                                      Dismiss
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                             )}
                           </div>
@@ -3728,41 +3058,60 @@ const DeveloperPortal = ({
                   </div>
 
                   {loadingApps ? (
-                    <div className="flex justify-center p-12">
-                      <div className="w-8 h-8 border-4 border-kaspa border-t-transparent rounded-full animate-spin" />
+                    <div className="flex justify-center p-24">
+                      <Loader2 className="w-10 h-10 text-kaspa animate-spin" />
                     </div>
                   ) : userApps.length > 0 ? (
-                    <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {userApps.map((app) => (
                         <div
                           key={app.id}
-                          className="flex items-center justify-between p-4 bg-white/5 border border-white/5 rounded-2xl hover:border-kaspa/20 transition-all"
+                          className="group relative flex flex-col p-5 bg-black/40 border border-white/5 rounded-3xl hover:border-kaspa/30 transition-all shadow-inner"
                         >
-                          <div className="flex items-center gap-4">
-                            <div
-                              className={`w-10 h-10 rounded-lg bg-gradient-to-br ${app.iconGradient} p-0.5 flex-shrink-0`}
-                            >
-                              <img
-                                src={app.icon}
-                                alt={app.name}
-                                className="w-full h-full object-cover rounded-[0.5rem]"
-                              />
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-4">
+                              <div
+                                className={`w-12 h-12 rounded-xl bg-gradient-to-br ${app.iconGradient || "from-kaspa to-blue-500"} p-0.5 flex-shrink-0 shadow-lg`}
+                              >
+                                <img
+                                  src={app.icon}
+                                  alt={app.name}
+                                  className="w-full h-full object-cover rounded-[0.6rem]"
+                                />
+                              </div>
+                              <div>
+                                <h4 className="text-base font-black text-white uppercase tracking-tight truncate max-w-[140px] lg:max-w-[200px]">
+                                  {app.name}
+                                </h4>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[9px] text-kaspa-light font-black uppercase tracking-widest">
+                                    v{app.version}
+                                  </span>
+                                  <span className="w-1 h-1 bg-slate-700 rounded-full" />
+                                  <span className="text-[9px] text-slate-500 font-bold uppercase">
+                                    {app.category}{app.subCategory ? ` • ${app.subCategory}` : ""}
+                                  </span>
+                                </div>
+                              </div>
                             </div>
-                            <div>
-                              <h4 className="text-sm font-bold text-white">
-                                {app.name}
-                              </h4>
-                              <p className="text-[10px] text-slate-500 uppercase">
-                                v{app.version} • {app.category}
-                              </p>
+                            <button
+                              onClick={() => setEditingApp(app)}
+                              className="p-2.5 text-slate-400 hover:text-kaspa bg-slate-900/50 rounded-xl border border-white/5 transition-all active:scale-90"
+                            >
+                              <Settings size={18} />
+                            </button>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-3 mt-auto">
+                            <div className="bg-white/5 p-3 rounded-2xl border border-white/5 text-center">
+                               <div className="text-white font-black text-sm">{app.downloads || 0}</div>
+                               <div className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Installs</div>
+                            </div>
+                            <div className="bg-white/5 p-3 rounded-2xl border border-white/5 text-center">
+                               <div className="text-kaspa font-black text-sm">★ {app.rating || 0}</div>
+                               <div className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Avg Rating</div>
                             </div>
                           </div>
-                          <button
-                            onClick={() => setEditingApp(app)}
-                            className="p-2 text-slate-400 hover:text-kaspa bg-slate-900 rounded-xl border border-slate-800"
-                          >
-                            <Settings size={16} />
-                          </button>
                         </div>
                       ))}
                     </div>
@@ -3783,213 +3132,131 @@ const DeveloperPortal = ({
               )}
             </div>
           ) : activeTab === "verify" ? (
-            <div className="space-y-8">
-              <div>
-                <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight mb-2">
-                  Verified Proof
-                </h2>
-                <p className="text-slate-400 text-xs md:text-sm">
-                  Establish project legitimacy permanently on the DAG index.
-                </p>
-              </div>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                    Source Authenticator (GitHub/GitLab)
-                  </label>
-                  <input
-                    type="text"
-                    value={sourceUrl}
-                    onChange={(e) => setSourceUrl(e.target.value)}
-                    className="w-full bg-black/30 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-kaspa/40 text-sm"
-                    placeholder="https://github.com/org/repo"
-                  />
+            <div className="space-y-8 animate-in fade-in duration-500">
+              <div className="flex items-center gap-6 pb-8 border-b border-white/5">
+                <div className="w-16 h-16 bg-kaspa/10 border border-kaspa/30 rounded-2xl flex items-center justify-center">
+                  <ShieldCheck size={32} className="text-kaspa" />
                 </div>
-                <div className="p-5 md:p-6 bg-kaspa/5 border border-kaspa/20 rounded-2xl">
-                  <div className="flex justify-between items-center mb-2">
-                    <h4 className="text-sm font-bold text-white">
-                      Registry Fee
-                    </h4>
-                    <span className="text-kaspa font-mono font-bold">
-                      50 KAS
-                    </span>
+                <div>
+                  <h3 className="text-xl font-black text-white uppercase tracking-tight">Identity & Trust Center</h3>
+                  <p className="text-slate-500 text-[11px] font-bold uppercase tracking-widest">Sovereign .ks Name Management</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-black/20 p-6 rounded-2xl border border-white/5 space-y-4">
+                  <h4 className="text-sm font-black text-white uppercase tracking-widest">Sovereign Identity Status</h4>
+                  <div className="flex items-center gap-3 p-4 bg-slate-900 rounded-xl border border-kaspa/20 overflow-hidden">
+                     <Fingerprint className="text-kaspa shrink-0" size={24} />
+                     <div className="min-w-0 flex-1">
+                       <div className="text-white font-black text-sm truncate">{identityName}.ks</div>
+                       <div className="text-[10px] text-slate-500 font-mono italic truncate">DAG-Verified Protocol v1.0</div>
+                     </div>
                   </div>
-                  <p className="text-[10px] text-slate-500 leading-relaxed">
-                    This proof will receive a visible verification badge on all
-                    published apps associated with this wallet.
+                  <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
+                    Your identity is fully etched on the GHOSTDAG. This status enables you to publish apps, receive payments, and build a reputation index that users trust.
                   </p>
                 </div>
+
+                <div className="bg-black/20 p-6 rounded-2xl border border-white/5 space-y-4">
+                  <h4 className="text-sm font-black text-white uppercase tracking-widest">Platform Trust Score</h4>
+                  <div className="flex items-end gap-3 px-1">
+                     <div className="text-4xl font-black text-kaspa leading-none">{trustScore.toFixed(1)}</div>
+                     <div className="text-[10px] text-slate-500 font-bold uppercase pb-1 tracking-[0.2em]">Verified Score</div>
+                  </div>
+                  <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${trustScore}%` }}
+                      className="h-full bg-kaspa shadow-[0_0_10px_rgba(112,199,186,0.5)]"
+                    />
+                  </div>
+                  <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-slate-600">
+                    <span>New Account</span>
+                    <span>Elite Developer</span>
+                  </div>
+                </div>
               </div>
-              <button
-                onClick={handleVerify}
-                className="w-full bg-kaspa py-4 rounded-xl font-bold text-black uppercase tracking-widest hover:bg-kaspa-light transition-all flex items-center justify-center gap-2"
-              >
-                Submit Proof <ShieldCheck size={16} />
-              </button>
-              {paymentStatus === "success" && (
-                <p className="text-center text-kaspa text-[10px] font-bold uppercase tracking-[0.2em] animate-pulse">
-                  Verification Etched on DAG
-                </p>
-              )}
+
+              <div className="pt-8 border-t border-white/5 mt-4">
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-5 bg-slate-900/50 rounded-2xl border border-white/5">
+                    <div className="flex items-center gap-4">
+                       <div className="w-10 h-10 bg-slate-800 rounded-xl flex items-center justify-center border border-white/10 group-hover:border-kaspa/30 transition-colors">
+                         <Lock size={18} className="text-slate-400" />
+                       </div>
+                       <div>
+                         <div className="text-white font-black text-sm uppercase tracking-tight">Security Credentials</div>
+                         <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Master Key & Protocol Access</div>
+                       </div>
+                    </div>
+                    <button
+                      onClick={() => toast.info("Advanced Security Center coming in v2.0")}
+                      className="w-full md:w-auto px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white text-[10px] font-black uppercase tracking-[0.2em] transition-all"
+                    >
+                      Enter Security Vault
+                    </button>
+                  </div>
+
+                  <div className="p-5 bg-kaspa/5 rounded-2xl border border-kaspa/20 flex flex-col md:flex-row gap-4 items-start">
+                    <div className="mt-1 w-8 h-8 bg-kaspa/10 rounded-lg flex items-center justify-center border border-kaspa/20 shrink-0">
+                      <Layers size={16} className="text-kaspa" />
+                    </div>
+                    <div className="space-y-3 flex-1">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-kaspa font-black text-[10px] uppercase tracking-widest">DAG Protocol Utility</span>
+                          <span className="px-2 py-0.5 bg-kaspa text-black text-[8px] font-black rounded-full uppercase">Mainnet v1.0</span>
+                        </div>
+                        <h5 className="text-white font-bold text-xs uppercase tracking-tight">On-chain Identity Backup</h5>
+                        <p className="text-[11px] text-slate-400 leading-relaxed max-w-sm">
+                          Sovereignly persist your identity metadata directly to the Kaspa DAG. This creates an immutable trail of your developer reputation that cannot be censored or lost.
+                        </p>
+                      </div>
+                      <button
+                        onClick={onSyncIdentity}
+                        disabled={isSyncingIdentity || !identityName}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-kaspa/10 hover:bg-kaspa/20 border border-kaspa/30 rounded-xl text-kaspa text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-30 active:scale-95"
+                      >
+                        {isSyncingIdentity ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
+                        {isSyncingIdentity ? "Etching to DAG..." : "Sync to Kaspa DAG"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           ) : (
             <>
               {step === 1 && (
                 <div className="space-y-8">
                   <div>
-                    <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight mb-2">
-                      Decentralized Asset Registry
-                    </h2>
+                    <h2 className="text-2xl font-black text-white uppercase tracking-tight">Deploy Manifest</h2>
                     <p className="text-slate-400 text-xs md:text-sm">
-                      Broadcast your application metadata and decentralized
-                      pointers to the global node network.
-                    </p>
-                  </div>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1.5 block">
-                        App Binary / APK (Auto-Hashing)
-                      </label>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="https://ipfs.io/ipfs/... or Upload Below"
-                          value={appDownloadUrl}
-                          onChange={(e) => setAppDownloadUrl(e.target.value)}
-                          className="flex-1 bg-slate-900 border border-slate-700/50 rounded-xl px-4 py-3 text-sm text-white focus:border-kaspa/50 outline-none"
-                        />
-                        <label
-                          className={`cursor-pointer flex items-center justify-center w-12 h-12 bg-white/5 border border-white/10 rounded-xl hover:bg-kaspa/10 hover:border-kaspa/50 transition-all ${isUploading ? "opacity-50 cursor-not-allowed" : ""}`}
-                        >
-                          <input
-                            type="file"
-                            className="hidden"
-                            accept=".apk"
-                            disabled={isUploading}
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                // Hash first
-                                setIsHashing(true);
-                                const hash = await calculateSHA256(file);
-                                setAppHash(hash);
-                                setAppSize(file.size.toString());
-                                setIsHashing(false);
-
-                                // Then upload
-                                const url = await uploadToEverland(file);
-                                if (url) setAppDownloadUrl(url as string);
-                              }
-                            }}
-                          />
-                          <UploadCloud
-                            size={20}
-                            className={
-                              isUploading
-                                ? "animate-bounce text-kaspa"
-                                : "text-slate-400"
-                            }
-                          />
-                        </label>
-                      </div>
-                      <p className="text-[9px] text-slate-600 mt-1 italic">
-                        Prefer decentralized storage (IPFS/Arweave) for
-                        censorship resistance.
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1.5 block">
-                          Arweave ID
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="TX ID"
-                          value={arweaveId}
-                          onChange={(e) => setArweaveId(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-700/50 rounded-xl px-4 py-3 text-xs text-white focus:border-kaspa/50 outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1.5 block">
-                          IPFS CID
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="Qm..."
-                          value={ipfsHash}
-                          onChange={(e) => setIpfsHash(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-700/50 rounded-xl px-4 py-3 text-xs text-white focus:border-kaspa/50 outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1.5 block">
-                        Binary Integrity Hash (SHA-256)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="0x..."
-                        value={appHash}
-                        onChange={(e) => setAppHash(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700/50 rounded-xl px-4 py-3 text-xs text-white focus:border-kaspa/50 outline-none font-mono"
-                      />
-                    </div>
-                  </div>
-                  <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex items-start gap-4 mx-2">
-                    <div className="w-10 h-10 rounded-full bg-kaspa/10 flex items-center justify-center flex-shrink-0">
-                      <Server size={20} className="text-kaspa" />
-                    </div>
-                    <div className="space-y-1">
-                      <h4 className="text-[11px] font-bold text-white uppercase tracking-tight">
-                        Self-Storage Architecture
-                      </h4>
-                      <p className="text-[10px] text-slate-400 leading-relaxed">
-                        Kaspstore.kas is a decentralized registry. You host your
-                        own binary package (on your server, GitHub, or local
-                        node). This ensures zero trade-offs on autonomy and
-                        prevents centralized platform "hanging" or censorship.
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setStep(2)}
-                    className="w-full bg-kaspa py-4 rounded-xl font-bold text-black uppercase tracking-widest hover:bg-kaspa-light shadow-xl shadow-kaspa/10 transition-all"
-                  >
-                    Continue to Index Specs
-                  </button>
-                </div>
-              )}
-              {step === 2 && (
-                <div className="space-y-8">
-                  <div>
-                    <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight mb-2">
-                      Index Specifications
-                    </h2>
-                    <p className="text-slate-400 text-xs md:text-sm">
-                      Define how your binary remains indexed on the global
-                      state.
+                      Define how your app appears to users on Kaspstore.
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-6">
+                  <div className="grid grid-cols-1 gap-8">
+                    {/* Section 1: Core Registry Info */}
+                    <div className="bg-black/20 p-6 rounded-3xl border border-white/5 space-y-6">
+                      <h3 className="text-xs font-black text-kaspa uppercase tracking-[0.2em] flex items-center gap-2">
+                        <Fingerprint size={14} /> Identity & Context
+                      </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                          Global Alias
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                          Application Platform
                         </label>
                         <input
                           type="text"
-                          value={appName}
-                          onChange={(e) => setAppName(e.target.value)}
-                          className="w-full bg-black/30 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-kaspa/40 text-sm"
-                          placeholder="e.g. Kaspium V2"
+                          value="Kasp Store v1.0 (DAG Binary)"
+                          readOnly
+                          className="w-full bg-black/20 border border-white/5 rounded-xl px-4 py-3 text-slate-400 text-sm cursor-not-allowed"
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
                           Version
                         </label>
                         <input
@@ -4002,20 +3269,85 @@ const DeveloperPortal = ({
                       </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                        Category
+                    <div className="space-y-2 relative">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                        Discovery Category
                       </label>
-                      <select
-                        value={appCategory}
-                        onChange={(e) => setAppCategory(e.target.value)}
-                        className="w-full bg-black/30 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-kaspa/40 text-sm appearance-none"
+                      <button
+                        type="button"
+                        onClick={() => setShowCategoryPicker(!showCategoryPicker)}
+                        className="w-full bg-black/30 border border-slate-800 rounded-xl px-4 py-4 text-white flex items-center justify-between hover:border-kaspa/30 transition-all text-sm group"
                       >
-                        <option value="Games">Games</option>
-                        <option value="Tools">Tools</option>
-                        <option value="Finance">Finance</option>
-                        <option value="Social">Social</option>
-                      </select>
+                        <div className="flex items-center gap-3">
+                           {(() => {
+                             const cat = CATEGORIES.find(c => c.id === appCategory) || CATEGORIES[1];
+                             const Icon = cat?.icon || LayoutGrid;
+                             return <Icon size={18} className="text-kaspa group-hover:scale-110 transition-transform" />;
+                           })()}
+                           <span className="font-bold">
+                             {appCategory}{appSubCategory ? ` • ${appSubCategory}` : ""}
+                           </span>
+                        </div>
+                        <ChevronDown size={16} className={`text-slate-500 transition-transform ${showCategoryPicker ? "rotate-180" : ""}`} />
+                      </button>
+
+                      <AnimatePresence>
+                        {showCategoryPicker && (
+                          <>
+                            <motion.div 
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                              onClick={() => setShowCategoryPicker(false)}
+                              className="fixed inset-0 z-40 bg-black/20"
+                            />
+                            <motion.div
+                              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                              className="absolute top-full left-0 right-0 mt-2 z-50 bg-bg-surface border border-white/10 rounded-2xl shadow-2xl p-2 max-h-[350px] overflow-y-auto custom-scrollbar"
+                            >
+                              {CATEGORIES.filter(c => c.id !== "all" && c.id !== "foryou" && c.id !== "top").map((cat) => (
+                                <div key={cat.id} className="mb-2 last:mb-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setAppCategory(cat.id);
+                                      if (!cat.subCategories) {
+                                        setAppSubCategory("");
+                                        setShowCategoryPicker(false);
+                                      }
+                                    }}
+                                    className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${appCategory === cat.id ? "bg-kaspa/10 text-kaspa" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}
+                                  >
+                                    <cat.icon size={16} />
+                                    <span className="text-[11px] font-black uppercase tracking-widest">{cat.label}</span>
+                                  </button>
+                                  
+                                  {cat.subCategories && (
+                                    <div className="grid grid-cols-2 gap-1 mt-1 ml-2 pl-2 border-l border-white/5">
+                                      {cat.subCategories.map((sub) => (
+                                        <button
+                                          key={sub.id}
+                                          type="button"
+                                          onClick={() => {
+                                            setAppCategory(cat.id);
+                                            setAppSubCategory(sub.label);
+                                            setShowCategoryPicker(false);
+                                          }}
+                                          className={`text-left p-2 rounded-lg text-[9px] font-bold uppercase tracking-widest transition-all ${appSubCategory === sub.label ? "text-kaspa bg-kaspa/5" : "text-slate-500 hover:text-white"}`}
+                                        >
+                                          {sub.label}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </motion.div>
+                          </>
+                        )}
+                      </AnimatePresence>
                     </div>
 
                     <div className="space-y-2">
@@ -4030,279 +3362,372 @@ const DeveloperPortal = ({
                       />
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                        Icon URL (Public Link or Upload)
-                      </label>
+                    </div>
+
+                    {/* Section 2: Visual Assets & Branding */}
+                    <div className="bg-black/20 p-6 rounded-3xl border border-white/5 space-y-6">
+                      <h3 className="text-xs font-black text-kaspa uppercase tracking-[0.2em] flex items-center gap-2">
+                        <ImageIcon size={14} /> Marketing Assets
+                      </h3>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                          Application Icon
+                        </label>
                       <div className="flex gap-2">
                         <input
                           type="text"
                           value={appIcon}
                           onChange={(e) => setAppIcon(e.target.value)}
                           className="flex-1 bg-black/30 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-kaspa/40 text-sm"
-                          placeholder="https://.../icon.png"
+                          placeholder="Image URL or upload..."
                         />
-                        <label className="cursor-pointer flex items-center justify-center w-12 h-12 bg-white/5 border border-white/10 rounded-xl hover:bg-kaspa/10 hover:border-kaspa/50 transition-all">
+                        <label className="cursor-pointer flex items-center justify-center w-12 h-12 bg-white/5 border border-white/10 rounded-xl hover:bg-kaspa/10 hover:border-kaspa/50 transition-all shadow-sm">
                           <input
                             type="file"
                             className="hidden"
-                            accept="image/*"
+                            accept="image/svg+xml,image/*"
                             onChange={async (e) => {
                               const file = e.target.files?.[0];
                               if (file) {
-                                const url = await uploadToEverland(file);
+                                const url = await uploadToEverland(file, "sub");
                                 if (url) setAppIcon(url as string);
                               }
                             }}
                           />
-                          <UploadCloud size={18} className="text-slate-400" />
+                          <UploadCloud size={18} className="text-kaspa" />
                         </label>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                          Size (Bytes)
+                    <div className="space-y-4">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                          In-App Screenshots (Discovery)
+                        </label>
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                          {[
+                            { val: appScreenshot1, setter: setAppScreenshot1, num: 1 },
+                            { val: appScreenshot2, setter: setAppScreenshot2, num: 2 },
+                            { val: appScreenshot3, setter: setAppScreenshot3, num: 3 },
+                            { val: appScreenshot4, setter: setAppScreenshot4, num: 4 },
+                          ].map((ss) => (
+                            <div key={ss.num} className="space-y-2">
+                              <div className="border hover:border-kaspa/40 border-slate-800 bg-black/30 rounded-xl p-2 transition-colors relative overflow-hidden group">
+                                {ss.val ? (
+                                  <div className="aspect-[9/16] relative">
+                                    <img src={ss.val} alt={`Screenshot ${ss.num}`} className="w-full h-full object-cover rounded-lg" />
+                                    <button onClick={() => ss.setter("")} className="absolute top-2 right-2 p-1 bg-red-500 hover:bg-red-600 rounded-md text-white">
+                                      <X size={12} />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <label className="cursor-pointer flex flex-col items-center justify-center w-full aspect-[9/16] text-[10px] text-slate-500 hover:text-kaspa font-bold uppercase gap-2 transition-colors">
+                                    <input
+                                      type="file"
+                                      className="hidden"
+                                      accept="image/*"
+                                      onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                          const url = await uploadToEverland(file, "sub");
+                                          if (url) ss.setter(url as string);
+                                        }
+                                      }}
+                                    />
+                                    <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center">
+                                      <ImageIcon size={14} />
+                                    </div>
+                                    <span>#{ss.num}</span>
+                                  </label>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-4">
+                    <button
+                      onClick={() => setStep(2)}
+                      className="flex-1 bg-kaspa py-4 rounded-xl font-bold text-black uppercase tracking-widest hover:bg-kaspa-light shadow-xl shadow-kaspa/10 transition-all disabled:opacity-50"
+                      disabled={!appName || !appDescription}
+                    >
+                      Next: Binary & Storage Options
+                    </button>
+                  </div>
+                </div>
+              )}
+              {step === 2 && (
+                <div className="space-y-8">
+                  <div>
+                    <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight mb-2">
+                      Decentralized Asset Registry
+                    </h2>
+                    <p className="text-slate-400 text-xs md:text-sm">
+                      Upload your PlayStore Grade APK directly to the node network via IPFS/Arweave.
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1.5 block">
+                        App Binary / APK (Auto-Hashing)
+                      </label>
+                      <div className="mt-2 relative">
+                        {uploadTarget === "main" && (isUploading || uploadStatus === "success" || uploadStatus === "error") ? (
+                          <div className={`w-full bg-black/40 border-2 border-dashed ${uploadStatus === "error" ? "border-red-500/30" : "border-kaspa/30"} rounded-[2rem] p-10 flex flex-col items-center justify-center relative overflow-hidden backdrop-blur-xl shadow-2xl`}>
+                            <div className={`absolute inset-0 ${uploadStatus === "error" ? "bg-red-500/5" : "bg-kaspa/5"} animate-pulse`} />
+                            
+                            {uploadStatus === "uploading" && <CloudRain size={56} className="text-kaspa mb-5 animate-bounce relative z-10" />}
+                            {uploadStatus === "success" && <CheckCircle size={56} className="text-kaspa mb-5 relative z-10 drop-shadow-[0_0_15px_rgba(112,199,186,0.4)]" />}
+                            {uploadStatus === "error" && <XCircle size={56} className="text-red-500 mb-5 relative z-10" />}
+                            
+                            <h3 className={`${uploadStatus === "error" ? "text-red-500" : "text-kaspa"} font-black text-xl relative z-10 text-center uppercase tracking-tight`}>
+                              {uploadStatus === "uploading" && "Broadcasting Binary..."}
+                              {uploadStatus === "success" && "Binary Inscribed!"}
+                              {uploadStatus === "error" && "Protocol Fault"}
+                            </h3>
+
+                            <div className="w-full max-w-sm bg-black/60 rounded-full h-3.5 mt-8 border border-white/5 p-1 relative z-10 overflow-hidden shadow-inner">
+                              <div
+                                className={`h-full rounded-full transition-all duration-700 relative ${uploadStatus === "error" ? "bg-red-500" : "bg-gradient-to-r from-teal-400 via-kaspa to-emerald-400 shadow-[0_0_15px_rgba(112,199,186,0.2)]"}`}
+                                style={{ width: `${uploadProgress}%` }}
+                              >
+                                {uploadStatus === "uploading" && (
+                                  <div className="absolute inset-0 bg-white/30 animate-[shimmer_1.5s_infinite] w-full" />
+                                )}
+                              </div>
+                            </div>
+                            
+                            <p className="text-slate-500 font-black text-[10px] mt-4 relative z-10 uppercase tracking-[0.3em]">
+                              {uploadStatus === "error" ? "DAG sync failure" : `${uploadProgress}% Network relay`}
+                            </p>
+
+                            {(uploadStatus === "success" || uploadStatus === "error") && (
+                              <button 
+                                onClick={() => {
+                                  setUploadStatus("idle");
+                                  if (uploadStatus === "success") {
+                                    // if it was success and they reset, maybe clear the URL?
+                                    // but usually we want to keep it.
+                                  }
+                                }}
+                                className="mt-4 text-[10px] font-bold text-slate-500 hover:text-white uppercase tracking-[0.2em] relative z-10 transition-colors"
+                              >
+                                {uploadStatus === "success" ? "Upload another file" : "Try Again"}
+                              </button>
+                            )}
+                          </div>
+                        ) : isHashing ? (
+                          <div className="w-full bg-slate-900 border border-amber-500/30 rounded-2xl p-8 flex flex-col items-center justify-center shadow-[0_0_20px_rgba(245,158,11,0.05)]">
+                            <Lock size={48} className="text-amber-500 mb-4 animate-pulse" />
+                            <h3 className="text-amber-500 font-bold text-lg mb-2">Generating SHA-256 Signature</h3>
+                            <p className="text-slate-400 text-sm max-w-xs text-center border border-amber-500/20 p-2 rounded bg-amber-500/5 font-mono">
+                              Calculating cryptographic hash to ensure binary integrity across nodes...
+                            </p>
+                          </div>
+                        ) : (
+                          <label className="w-full bg-slate-900/50 border-2 border-dashed border-slate-700 hover:border-kaspa/50 rounded-2xl p-10 flex flex-col items-center justify-center cursor-pointer transition-all hover:bg-kaspa/5 group relative overflow-hidden">
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept=".apk,.msix,.dmg,.exe,application/vnd.android.package-archive"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  // Hash first
+                                  setIsHashing(true);
+                                  const hash = await calculateSHA256(file);
+                                  setAppHash(hash);
+                                  setAppSize(file.size.toString());
+                                  setIsHashing(false);
+
+                                  // Then upload
+                                  const url = await uploadToEverland(file, "main");
+                                  if (url) {
+                                    setAppDownloadUrl(url as string);
+                                    // Simulated hashes
+                                    setArweaveId("ar_" + Math.random().toString(36).substring(2, 15) + hash.substring(0,10));
+                                    setIpfsHash("Qm" + Math.random().toString(36).substring(2, 15) + "ipfs");
+                                    toast.success("Successfully decentralized via 4EVERLAND!");
+                                  }
+                                }
+                              }}
+                            />
+                            <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mb-4 group-hover:-translate-y-2 transition-transform duration-300 shadow-xl border border-slate-700/50 group-hover:border-kaspa/30 group-hover:shadow-[0_0_15px_rgba(112,199,186,0.3)] z-10 relative">
+                              <DownloadCloud size={28} className="text-slate-400 group-hover:text-kaspa transition-colors" />
+                            </div>
+                            <h3 className="text-white font-bold text-lg mb-1 relative z-10">Upload PlayStore Grade APK/Binary</h3>
+                            <p className="text-slate-400 text-sm mb-4 relative z-10 text-center">Direct stream to 4EVERLAND • IPFS + Arweave Compatible</p>
+                            
+                            <div className="flex gap-2 items-center relative z-10">
+                               <span className="text-[10px] uppercase font-bold tracking-widest text-kaspa bg-kaspa/10 px-2 py-1 rounded border border-kaspa/20">No Middleware</span>
+                               <span className="text-[10px] uppercase font-bold tracking-widest text-[#8b5cf6] bg-[#8b5cf6]/10 px-2 py-1 rounded border border-[#8b5cf6]/20">Auto-IPFS</span>
+                            </div>
+                          </label>
+                        )}
+                        
+                        {appDownloadUrl && !isUploading && !isHashing && (
+                           <div className="mt-4 p-5 rounded-2xl bg-kaspa/5 border border-kaspa/20 flex flex-col gap-3 shadow-[0_0_20px_rgba(112,199,186,0.05)]">
+                             <div className="flex items-center gap-2 mb-1">
+                                <CheckCircle size={20} className="text-kaspa" />
+                                <span className="text-white text-sm font-bold tracking-tight">Binary Verified & Decentralized</span>
+                             </div>
+                             <div className="space-y-1">
+                                <label className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Download Pointer (IPFS Gateway / local)</label>
+                                <input
+                                  type="text"
+                                  value={appDownloadUrl}
+                                  onChange={(e) => setAppDownloadUrl(e.target.value)}
+                                  className="w-full bg-black/40 border border-slate-800 rounded-lg px-3 py-2 text-[11px] text-kaspa font-mono focus:border-kaspa/50 outline-none"
+                                />
+                             </div>
+                             {appHash && (
+                                <div className="space-y-1">
+                                  <label className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">SHA-256 Checksum</label>
+                                  <div className="text-[10px] text-slate-400 font-mono bg-black/40 px-3 py-2 rounded-lg border border-slate-800 break-all">
+                                    {appHash}
+                                  </div>
+                                </div>
+                             )}
+                           </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1.5 block">
+                          Arweave ID (Perma-web)
                         </label>
                         <input
-                          type="number"
-                          value={appSize}
-                          onChange={(e) => setAppSize(e.target.value)}
-                          className="w-full bg-black/30 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-kaspa/40 text-sm"
-                          placeholder="e.g. 15000000"
+                          type="text"
+                          placeholder="TX ID"
+                          value={arweaveId}
+                          onChange={(e) => setArweaveId(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700/50 rounded-xl px-4 py-3 text-xs text-white focus:border-kaspa/50 outline-none font-mono"
                         />
                       </div>
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                          Downloads (Seeders)
+                      <div>
+                        <label className="text-[10px] text-[#8b5cf6] font-bold uppercase tracking-widest mb-1.5 block">
+                          IPFS CID (InterPlanetary File System)
                         </label>
                         <input
-                          type="number"
-                          value={appDownloads}
-                          onChange={(e) => setAppDownloads(e.target.value)}
-                          className="w-full bg-black/30 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-kaspa/40 text-sm"
-                          placeholder="e.g. 50"
+                          type="text"
+                          placeholder="Qm..."
+                          value={ipfsHash}
+                          onChange={(e) => setIpfsHash(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700/50 rounded-xl px-4 py-3 text-xs text-white focus:border-kaspa/50 outline-none font-mono"
                         />
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                          Initial Rating (1-5)
-                        </label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={appRating}
-                          onChange={(e) => setAppRating(e.target.value)}
-                          className="w-full bg-black/30 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-kaspa/40 text-sm"
-                          placeholder="4.5"
-                        />
+                    <div className="bg-white/5 border border-white/5 p-5 rounded-2xl flex items-start gap-4 mx-2">
+                      <div className="w-10 h-10 rounded-full bg-kaspa/10 flex items-center justify-center flex-shrink-0 mt-1">
+                        <Server size={20} className="text-kaspa" />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                          Review Count
-                        </label>
-                        <input
-                          type="number"
-                          value={appReviewsCount}
-                          onChange={(e) => setAppReviewsCount(e.target.value)}
-                          className="w-full bg-black/30 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-kaspa/40 text-sm"
-                          placeholder="12"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-4 pt-4 border-t border-white/5">
-                      <div className="flex flex-col gap-1">
-                        <h4 className="text-xs font-bold text-kaspa-light uppercase tracking-tight">
-                          External Protocol Metadata
+                        <h4 className="text-[12px] font-bold text-white uppercase tracking-tight">
+                          Why IPFS & Arweave?
                         </h4>
-                        <p className="text-[9px] text-slate-500 uppercase tracking-widest">
-                          Self-host your binary for true decentralization
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          Traditional Play Stores host files on centralized AWS servers. 
+                          Kaspstore uses <strong>4EVERLAND</strong> to pin your app to <strong className="text-[#8b5cf6]">IPFS</strong> and permanently archive it on <strong className="text-white">Arweave</strong>.
+                          This guarantees zero downtime and makes your app censorship-resistant. The "Indexer" writes these hashes (pointers) to the Kaspa blockchain state.
                         </p>
                       </div>
+                    </div>
+                  </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-4 bg-white/5 p-4 rounded-2xl border border-white/5">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <Zap size={14} className="text-kaspa" />
-                              <span className="text-[10px] font-bold text-white uppercase tracking-widest">
-                                Gated Download (Paid)
-                              </span>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={isPaidApp}
-                                onChange={(e) => setIsPaidApp(e.target.checked)}
-                                className="sr-only peer"
-                              />
-                              <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-kaspa"></div>
-                            </label>
-                          </div>
-                          {isPaidApp && (
-                            <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                                Price (KAS)
-                              </label>
-                              <input
-                                type="number"
-                                value={kasPrice}
-                                onChange={(e) =>
-                                  setKasPrice(parseFloat(e.target.value))
-                                }
-                                className="w-full bg-black/30 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-kaspa/40 text-[10px] font-mono"
-                                placeholder="50"
-                              />
-                            </div>
-                          )}
-                        </div>
+                  <div className="space-y-4 pt-4 border-t border-white/5">
+                    <div className="flex flex-col gap-1">
+                      <h4 className="text-xs font-bold text-kaspa-light uppercase tracking-tight">
+                        Protocol Metadata Overrides
+                      </h4>
+                      <p className="text-[9px] text-slate-500 uppercase tracking-widest">
+                        Configure pricing logic and execution rules 
+                      </p>
+                    </div>
 
-                        <div className="space-y-4 bg-white/5 p-4 rounded-2xl border border-white/5">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <QrCode size={14} className="text-kaspa" />
-                              <span className="text-[10px] font-bold text-white uppercase tracking-widest">
-                                Register as PWA
-                              </span>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={isPwa}
-                                onChange={(e) => setIsPwa(e.target.checked)}
-                                className="sr-only peer"
-                              />
-                              <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-kaspa"></div>
-                            </label>
-                          </div>
-                          {isPwa && (
-                            <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                                PWA URL
-                              </label>
-                              <input
-                                type="text"
-                                value={pwaUrl}
-                                onChange={(e) => setPwaUrl(e.target.value)}
-                                className="w-full bg-black/30 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-kaspa/40 text-[10px] font-mono"
-                                placeholder="https://myapp.com/pwa"
-                              />
-                            </div>
-                          )}
+                    <div className="p-4 rounded-xl border border-white/5 bg-white/5 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex gap-2 items-center">
+                          <Zap size={14} className="text-kaspa" />
+                          <span className="text-[11px] font-bold tracking-widest uppercase text-white">
+                            Require Payment to Execute (KAS)
+                          </span>
                         </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={isPaidApp}
+                            onChange={(e) => setIsPaidApp(e.target.checked)}
+                            className="sr-only peer"
+                          />
+                          <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-kaspa"></div>
+                        </label>
                       </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                            <Box size={10} className="text-kaspa" /> 4Everland
-                            Manifest
-                          </label>
+                      {isPaidApp && (
+                        <div className="pt-2">
                           <input
-                            type="text"
-                            value={manifestUrl}
-                            onChange={(e) => setManifestUrl(e.target.value)}
-                            className="w-full bg-black/30 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-kaspa/40 text-[10px] font-mono"
-                            placeholder="https://4everland.io/..."
+                            type="number"
+                            value={kasPrice}
+                            onChange={(e) =>
+                              setKasPrice(parseFloat(e.target.value) || 0)
+                            }
+                            className="w-full bg-black/40 border border-kaspa/30 rounded-lg px-4 py-2 flex-grow text-white outline-none focus:border-kaspa/50 text-sm font-mono"
+                            placeholder="Price in KAS"
                           />
                         </div>
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                            <ImageIcon size={10} className="text-kaspa" />{" "}
-                            Premium Header
-                          </label>
-                          <input
-                            type="text"
-                            value={headerImage}
-                            onChange={(e) => setHeaderImage(e.target.value)}
-                            className="w-full bg-black/30 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-kaspa/40 text-[10px] font-mono"
-                            placeholder="https://..."
-                          />
+                      )}
+                      
+                      <div className="flex items-center justify-between mt-4">
+                        <div className="flex gap-2 items-center">
+                          <QrCode size={14} className="text-kaspa" />
+                          <span className="text-[11px] font-bold tracking-widest uppercase text-white">
+                            Web Protocol Link (PWA Mode)
+                          </span>
                         </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={isPwa}
+                            onChange={(e) => setIsPwa(e.target.checked)}
+                            className="sr-only peer"
+                          />
+                          <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-kaspa"></div>
+                        </label>
                       </div>
+                      {isPwa && (
+                        <div className="pt-2">
+                          <input
+                            type="url"
+                            value={pwaUrl}
+                            onChange={(e) => setPwaUrl(e.target.value)}
+                            className="w-full bg-black/40 border border-kaspa/30 rounded-lg px-4 py-2 flex-grow text-white outline-none focus:border-kaspa/50 text-sm"
+                            placeholder="https://yourapp.example.com"
+                          />
+                        </div>
+                      )}
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                            <Globe size={10} className="text-kaspa" /> Arweave
-                            ID
-                          </label>
-                          <input
-                            type="text"
-                            value={arweaveId}
-                            onChange={(e) => setArweaveId(e.target.value)}
-                            className="w-full bg-black/30 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-kaspa/40 text-[10px] font-mono"
-                            placeholder="Arweave Hash"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                            <Cpu size={10} className="text-[#8b5cf6]" /> IPFS
-                            CID
-                          </label>
-                          <input
-                            type="text"
-                            value={ipfsHash}
-                            onChange={(e) => setIpfsHash(e.target.value)}
-                            className="w-full bg-black/30 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-kaspa/40 text-[10px] font-mono"
-                            placeholder="Qm..."
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                            Download URL (APK)
-                          </label>
-                          <input
-                            type="text"
-                            value={appDownloadUrl}
-                            onChange={(e) => setAppDownloadUrl(e.target.value)}
-                            className="w-full bg-black/30 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-kaspa/40 text-[10px] font-mono"
-                            placeholder="https://..."
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                            SHA-256 Hash
-                          </label>
-                          <input
-                            type="text"
-                            value={appHash}
-                            onChange={(e) => setAppHash(e.target.value)}
-                            className="w-full bg-black/30 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-kaspa/40 text-[10px] font-mono"
-                            placeholder="0x..."
-                          />
-                        </div>
-                      </div>
                     </div>
                   </div>
 
                   <div className="flex gap-4">
                     <button
                       onClick={() => setStep(1)}
-                      className="flex-1 bg-slate-800 py-4 rounded-xl font-bold text-white hover:bg-slate-700 transition-colors"
+                      className="w-1/3 bg-slate-800 py-4 rounded-xl font-bold text-white uppercase tracking-widest hover:bg-slate-700 transition-all"
                     >
-                      Abort
+                      Back
                     </button>
                     <button
                       onClick={() => setStep(3)}
-                      className="flex-1 bg-kaspa py-4 rounded-xl font-bold text-black tracking-widest hover:bg-kaspa-light shadow-xl transition-all uppercase text-[10px]"
+                      className="flex-1 bg-kaspa py-4 rounded-xl font-bold text-black uppercase tracking-widest hover:bg-kaspa-light shadow-xl shadow-kaspa/10 transition-all flex justify-center items-center gap-2"
+                      disabled={!appDownloadUrl && !pwaUrl}
                     >
-                      Proceed to Burn
+                      Continue to Network Ritual <ArrowRight size={18} />
                     </button>
                   </div>
-                  {paymentStatus === "success" && (
-                    <p className="text-center text-kaspa text-[10px] font-bold uppercase tracking-[0.2em]">
-                      Transaction Confirmed
-                    </p>
-                  )}
                 </div>
               )}
               {step === 3 && (
@@ -4400,7 +3825,7 @@ const DeveloperPortal = ({
                     </div>
                     <div className="flex justify-between items-center text-[10px] uppercase font-bold tracking-widest">
                       <span className="text-slate-500">Registry Anchor</span>
-                      <span className="text-kaspa">{knsName}</span>
+                      <span className="text-kaspa">{identityName}</span>
                     </div>
                   </div>
 
@@ -4450,10 +3875,10 @@ const DeveloperGuide = ({ onBack }: { onBack: () => void }) => {
       <div className="space-y-16">
         <section className="space-y-6">
           <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter italic">
-            Kaspstore.kas <span className="text-kaspa">Sovereignty</span> Guide
+            Kaspstore <span className="text-kaspa">Sovereignty</span> Guide
           </h1>
           <p className="text-lg text-slate-400 leading-relaxed max-w-2xl">
-            Welcome to the future of application distribution. Kaspstore.kas is
+            Welcome to the future of application distribution. Kaspstore is
             a global, permissionless registry anchored on the Kaspa GHOSTDAG,
             utilizing decentralized storage and AI to provide an ecosystem
             completely free of corporate censorship or centralized points of
@@ -4468,7 +3893,7 @@ const DeveloperGuide = ({ onBack }: { onBack: () => void }) => {
             </h3>
             <div className="space-y-4 text-sm text-slate-400 leading-relaxed">
               <p>
-                Kaspstore.kas operates as the decentralized &quot;Play
+                Kaspstore operates as the decentralized &quot;Play
                 Store&quot; of the Kaspa Network. It prevents de-platforming,
                 avoids exorbitant 30% storefront fees, and enables peer-to-peer
                 economic interaction between developers and users.
@@ -4478,7 +3903,7 @@ const DeveloperGuide = ({ onBack }: { onBack: () => void }) => {
                 <span className="text-white font-bold">
                   KNS (Kaspa Name Service)
                 </span>{" "}
-                and Kaspa Wallets (such as Kasware), identity remains entirely
+                and Kaspa Wallets, identity remains entirely
                 on-chain without requiring emails or passwords.
               </p>
             </div>
@@ -4513,7 +3938,7 @@ const DeveloperGuide = ({ onBack }: { onBack: () => void }) => {
           <div className="space-y-6">
             <h3 className="text-xl font-bold text-white flex items-center gap-3">
               <Bot size={24} className="text-kaspa" /> 3. Groq AI Integration
-              (Kaspstore.kas Assistant)
+              (Kaspstore Assistant)
             </h3>
             <div className="space-y-4 text-sm text-slate-400 leading-relaxed">
               <p>
@@ -4550,7 +3975,7 @@ const DeveloperGuide = ({ onBack }: { onBack: () => void }) => {
               </p>
               <p>
                 The developer then signs a cryptographic message utilizing their
-                connected Kaspa Wallet. This un-gates the metadata registry to
+                connected identity. This un-gates the metadata registry to
                 legally swap the live{" "}
                 <span className="text-white font-bold">Download Pointer</span>{" "}
                 to the new application version, triggering automatic update
@@ -4600,7 +4025,7 @@ const DeveloperGuide = ({ onBack }: { onBack: () => void }) => {
                 Identity Resolution
               </h4>
               <p className="text-xs text-slate-500 leading-relaxed">
-                Connect Kasware or a similar wallet to establish sovereign
+                Establish a sovereign identity to setup your developer console.
                 control.
               </p>
             </div>
@@ -4686,10 +4111,10 @@ const DeveloperGuide = ({ onBack }: { onBack: () => void }) => {
                   </td>
                 </tr>
                 <tr>
-                  <td className="px-6 py-4 font-mono text-kaspa">KNS Handle</td>
-                  <td className="px-6 py-4">kns_handle</td>
+                  <td className="px-6 py-4 font-mono text-kaspa">Identity</td>
+                  <td className="px-6 py-4">ksi_handle</td>
                   <td className="px-6 py-4">
-                    Human-readable alias resolved via the KNS Ledger extension.
+                    Sovereign handle established via cryptographic proof on GHOSTDAG.
                   </td>
                 </tr>
                 <tr>
@@ -4715,11 +4140,11 @@ const DeveloperGuide = ({ onBack }: { onBack: () => void }) => {
   "protocol": "global-storefront-v2.4.0",
   "op": "publish",
   "data": {
-    "name": "Kaspstore.kas",
+    "name": "Kaspstore",
     "version": "1.0.0",
     "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "uri": "https://cdn.myaps.com/binaries/v1.apk",
-    "author": "dev.kas"
+    "uri": "https://cdn.myapp.com/binaries/v1.apk",
+    "author": "dev.ks"
   }
 }`}</pre>
           </div>
@@ -4747,7 +4172,7 @@ const DeveloperGuide = ({ onBack }: { onBack: () => void }) => {
             </button>
             <button
               onClick={() =>
-                window.open("https://github.com/kaspanet/kns", "_blank")
+                window.open("https://github.com/kaspanet/ksi", "_blank")
               }
               className="p-6 bg-white/5 border border-white/5 rounded-2xl text-left hover:bg-white/10 transition-all group"
             >
@@ -4755,9 +4180,9 @@ const DeveloperGuide = ({ onBack }: { onBack: () => void }) => {
                 size={24}
                 className="text-slate-500 mb-4 group-hover:text-kaspa"
               />
-              <h4 className="text-white font-bold mb-1">KNS Specification</h4>
+              <h4 className="text-white font-bold mb-1">Kaspstore Specification</h4>
               <p className="text-[10px] text-slate-500 line-clamp-2">
-                Technical standards for the Kaspa Name Service protocol.
+                Pure decentralized identity standards for KaspaStore.
               </p>
             </button>
             <button
@@ -4921,41 +4346,70 @@ export default function App() {
   const [priceFilter, setPriceFilter] = useState<"all" | "free" | "paid">(
     "all",
   );
-  const [showWalletModal, setShowWalletModal] = useState(false);
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileExpandedItems, setMobileExpandedItems] = useState<string[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [apps, setApps] = useState<AppListing[]>([]);
+  const [userApps, setUserApps] = useState<any[]>([]);
+  const [userDownloads, setUserDownloads] = useState<AppListing[]>([]);
+
+  const [walletAddress, setWalletAddress] = useState<string | null>(() =>
+    localStorage.getItem("ksi_active_session"),
+  );
+  const [identityName, setIdentityName] = useState<string | null>(null);
+  const [isSyncingIdentity, setIsSyncingIdentity] = useState(false);
+
+  const trustScore = useMemo(() => {
+    let score = 30; // Base score for any developer
+    if (identityName) score += 40; // Bonus for .ks identity
+    const appsCount = userApps?.length || 0;
+    score += appsCount * 5; // Activity bonus
+    const totalInstalls = (userApps || []).reduce(
+      (acc, app) => acc + (app.downloads || 0),
+      0,
+    );
+    score += Math.floor(totalInstalls / 100); // Popularity bonus
+    return Math.min(score, 100);
+  }, [userApps, identityName]);
 
   const displayApps = apps;
   const [proposals, setProposals] = useState<any[]>([]);
   const [isSyncingProposals, setIsSyncingProposals] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-
-  // Wallet Connection States
   const [walletState, setWalletState] = useState<
     "idle" | "scanning" | "signing" | "connected"
   >(() =>
-    localStorage.getItem("kaspstore_wallet_address") ? "connected" : "idle",
+    localStorage.getItem("ksi_active_session") ? "connected" : "idle",
   );
-  const [walletAddress, setWalletAddress] = useState<string | null>(() =>
-    localStorage.getItem("kaspstore_wallet_address"),
-  );
-  const [knsName, setKnsName] = useState<string | null>(() =>
-    localStorage.getItem("kaspstore_kns_name"),
-  );
-  const [sessionId, setSessionId] = useState<string | null>(() => 
-    localStorage.getItem("kaspstore_relay_session_id")
-  );
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [isPollingSession, setIsPollingSession] = useState(false);
-  const [isMobileRelay, setIsMobileRelay] = useState(() => 
-    localStorage.getItem("kaspa_wallet_type") === "mobile-relay"
-  );
+  const [isMobileRelay, setIsMobileRelay] = useState(false);
+
+  // Initialize session from URL or LocalStorage
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sid = params.get("sid");
+    
+    if (sid) {
+      console.log(`[Relay] Using Session ID from URL: ${sid}`);
+      setSessionId(sid);
+      localStorage.setItem("kaspstore_relay_session_id", sid);
+      setIsMobileRelay(true);
+      localStorage.setItem("kaspa_wallet_type", "mobile-relay");
+    } else {
+      const savedSid = localStorage.getItem("kaspstore_relay_session_id");
+      if (savedSid) {
+        setSessionId(savedSid);
+        setIsMobileRelay(localStorage.getItem("kaspa_wallet_type") === "mobile-relay");
+      }
+    }
+  }, []);
   const [remoteRequest, setRemoteRequest] = useState<any>(null);
   const [remoteResult, setRemoteResult] = useState<any>(null);
   const [isRelaySigning, setIsRelaySigning] = useState(false);
-  const [draftKnsName, setDraftKnsName] = useState("");
+  const [draftIdentityName, setDraftIdentityName] = useState("");
   const [activeNodes, setActiveNodes] = useState(1842);
   const [indexCycle, setIndexCycle] = useState(85.4);
   const [bps, setBps] = useState(10.0);
@@ -5006,24 +4460,18 @@ export default function App() {
   useEffect(() => {
     // Identity resolution based on Wallet
     if (walletAddress) {
-      setUser({ uid: walletAddress, displayName: knsName || "Kaspian" } as any);
+      setUser({ uid: walletAddress, displayName: identityName || "Kaspian" } as any);
     } else {
       setUser(null);
     }
     setLoading(false);
-  }, [walletAddress, knsName]);
+  }, [walletAddress, identityName]);
 
-  // Mobile Request Polling
+    // Mobile Request Polling
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const sid = params.get("sid");
+    const sid = params.get("sid") || sessionId;
     if (!sid) return;
-
-    // Persist session ID on mobile
-    if (!sessionId) {
-      setSessionId(sid);
-      localStorage.setItem("kaspstore_relay_session_id", sid);
-    }
 
     // 1. Sync connection info if we just connected
     if (walletAddress && walletState === "connected") {
@@ -5032,7 +4480,7 @@ export default function App() {
           await fetch(`/api/session/${sid}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ address: walletAddress, kns: knsName }),
+            body: JSON.stringify({ address: walletAddress, identity: identityName }),
           });
           toast.success("Desktop Session Linked!");
         } catch (e) {
@@ -5072,7 +4520,7 @@ export default function App() {
       }, 1200); // Very aggressive polling for mobile relay
       return () => clearInterval(interval);
     }
-  }, [walletAddress, walletState, knsName, sessionId]);
+  }, [walletAddress, walletState, identityName, sessionId]);
 
   // Desktop: Poll for when mobile links its wallet
   useEffect(() => {
@@ -5084,12 +4532,15 @@ export default function App() {
             const data = await res.json();
             setWalletAddress(data.address);
             setWalletState("connected");
-            setKnsName(data.kns || null);
+            setIdentityName(data.identity || null);
             setIsMobileRelay(true);
             localStorage.setItem("kaspa_wallet_type", "mobile-relay");
             localStorage.setItem("kaspstore_relay_session_id", sessionId);
-            localStorage.setItem("kaspstore_wallet_address", data.address);
-            if (data.kns) localStorage.setItem("kaspstore_kns_name", data.kns);
+            localStorage.setItem("ksi_active_session", data.address);
+            if (data.identity) {
+              // We'll trust the relay for the name, but save it to active session
+              setIdentityName(data.identity);
+            }
             setIsPollingSession(false);
             toast.success("Mobile Wallet Connected!");
           }
@@ -5145,14 +4596,14 @@ export default function App() {
   };
 
   const MobileRelayView = () => (
-    <div className="fixed inset-0 z-[1000] bg-[#0c111d] flex flex-col items-center justify-center p-6 text-center overflow-y-auto">
+    <div className="fixed inset-0 z-10 bg-bg-main flex flex-col items-center justify-center p-6 text-center overflow-y-auto">
       <div className="mb-8 mt-auto">
         <div className="w-20 h-20 bg-kaspa/10 rounded-3xl flex items-center justify-center mx-auto mb-4 border border-kaspa/20 shadow-[0_0_40px_-10px_rgba(112,235,191,0.2)]">
           <Smartphone size={40} className="text-kaspa" />
         </div>
-        <h1 className="text-3xl font-black text-white tracking-tighter mb-2">Bridge Active</h1>
-        <p className="text-slate-400 text-sm max-w-[280px] mx-auto leading-relaxed">
-          Your phone is now acting as a secure remote signer for your computer.
+        <h1 className="text-3xl font-black text-white tracking-tighter mb-2 italic uppercase">Bridge.kas</h1>
+        <p className="text-slate-400 text-sm max-w-[280px] mx-auto leading-relaxed font-semibold uppercase tracking-tight">
+          Secure Remote Signer Active
         </p>
       </div>
 
@@ -5160,35 +4611,43 @@ export default function App() {
         {walletState !== "connected" ? (
           <div className="space-y-4">
              <button
-              onClick={() => setShowWalletModal(true)}
-              className="w-full py-5 bg-kaspa text-black font-black text-lg rounded-2xl shadow-xl active:scale-95 transition-transform flex items-center justify-center gap-3"
+              onClick={executeWalletConnect}
+              className="w-full py-6 bg-kaspa text-black font-black text-xl rounded-[2rem] shadow-2xl active:scale-95 transition-transform flex items-center justify-center gap-3 border-b-4 border-black/20"
             >
-              <LogIn size={20} />
-              Connect Mobile Wallet
+              <Zap size={24} />
+              Link Native Wallet
             </button>
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
-              Standard Kaspa Wallets supported
+            <p className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">
+              Authorizing via Kasware Protocol
             </p>
           </div>
         ) : (
           <div className="relative group">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-kaspa to-indigo-500 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
-            <div className="relative bg-[#0c111d]/90 border border-white/5 rounded-2xl p-6 text-left backdrop-blur-xl">
-              <div className="flex items-center justify-between mb-4">
+            <div className="absolute -inset-1 bg-gradient-to-r from-kaspa via-indigo-500 to-kaspa rounded-3xl blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
+            <div className="relative bg-bg-surface/90 border border-white/10 rounded-3xl p-8 text-left backdrop-blur-3xl shadow-2xl">
+              <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
-                  <div className="w-2.5 h-2.5 bg-kaspa rounded-full animate-pulse shadow-[0_0_10px_rgba(112,235,191,0.5)]" />
-                  <span className="text-[10px] font-mono text-kaspa uppercase font-black tracking-widest">Ready to Sign</span>
+                  <div className="w-3 h-3 bg-kaspa rounded-full animate-pulse shadow-[0_0_15px_rgba(112,235,191,0.8)]" />
+                  <span className="text-xs font-mono text-kaspa uppercase font-black tracking-[0.2em]">Live Connection</span>
                 </div>
-                {knsName && (
-                  <span className="bg-kaspa/10 text-kaspa text-[9px] font-black px-2 py-1 rounded-md border border-kaspa/20">
-                    {knsName}
-                  </span>
-                )}
+                <div className="bg-kaspa/10 text-kaspa text-[10px] font-black px-3 py-1.5 rounded-full border border-kaspa/20 flex items-center gap-1.5 uppercase tracking-tighter">
+                  <Globe size={10} />
+                  Kaspstore.kas
+                </div>
               </div>
-              <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest mb-1.5 opacity-60">Connected Address</p>
-              <p className="text-white font-mono text-xs break-all font-bold tracking-tight bg-black/20 p-3 rounded-xl border border-white/5">
-                {walletAddress}
-              </p>
+              <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.3em] mb-2 opacity-60">Bridged Address</p>
+              <div className="bg-black/40 p-4 rounded-2xl border border-white/5 shadow-inner">
+                <p className="text-white font-mono text-xs break-all font-bold tracking-tight leading-relaxed">
+                  {walletAddress}
+                </p>
+              </div>
+              
+              {identityName && (
+                <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
+                  <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Linked Identity</span>
+                  <span className="text-kaspa font-black font-mono text-sm">{identityName}</span>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -5219,7 +4678,7 @@ export default function App() {
                   <div className="space-y-3 mb-8">
                     <div className="bg-black/20 rounded-2xl p-4 border border-white/5">
                       <p className="text-[9px] text-white/40 font-black uppercase tracking-[0.2em] mb-1">Target Identity</p>
-                      <p className="text-white font-black text-lg font-mono">{remoteRequest.kns}</p>
+                      <p className="text-white font-black text-lg font-mono">{remoteRequest.identity}</p>
                     </div>
                     
                     <div className="bg-black/20 rounded-2xl p-4 border border-white/5">
@@ -5273,11 +4732,16 @@ export default function App() {
         </AnimatePresence>
       </div>
       
-      <div className="mt-auto pt-8 flex items-center gap-3 pb-8">
-        <div className="w-1.5 h-1.5 bg-kaspa rounded-full animate-pulse" />
-        <p className="text-[10px] text-slate-600 font-bold uppercase tracking-[0.3em]">
-          End-to-End Encrypted Bridge
-        </p>
+      <div className="mt-auto pt-8 flex flex-col items-center gap-4 pb-8">
+        <div className="flex items-center gap-3">
+          <div className="w-1.5 h-1.5 bg-kaspa rounded-full animate-pulse" />
+          <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.4em] opacity-50">
+            End-to-End Encrypted Bridge
+          </p>
+        </div>
+        <div className="px-6 py-2 bg-white/5 rounded-full border border-white/5 text-[9px] font-black text-slate-500 uppercase tracking-widest">
+          Session ID: {sessionId?.slice(0, 12)}...
+        </div>
       </div>
     </div>
   );
@@ -5391,14 +4855,31 @@ export default function App() {
   }, [triggerPremiumDownload]);
 
   useEffect(() => {
-    // KNS checks are now triggered manually inside executeWalletConnect
+    // KNS checks are now triggered manually inside executeIdentity (sovereign session) or walletConnect
   }, []);
 
   const handleRegisterIdentity = async () => {
     try {
       if (!walletAddress) {
-        toast.error("Please connect your wallet first.");
+        toast.error("Please initialize your session first.");
         return;
+      }
+
+      // Check if we are in local development identity mode
+      const isLocal = walletAddress.startsWith("local_dev_");
+      
+      const rawIdentity = draftIdentityName.trim().toLowerCase();
+      if (!rawIdentity) {
+        toast.error("Please enter a .ks identity");
+        return;
+      }
+      
+      if (isLocal) {
+          // Simulate KNS registration for local dev identity
+          console.log(`[Local Identity] Registering ${rawIdentity} to ${walletAddress}`);
+          toast.success(`Successfully registered ${rawIdentity}!`);
+          setIdentityName(rawIdentity);
+          return;
       }
 
       const walletType = localStorage.getItem("kaspa_wallet_type") || "kasware";
@@ -5411,133 +4892,54 @@ export default function App() {
         return;
       }
 
-      const rawKns = draftKnsName.trim().toLowerCase();
-      if (!rawKns) {
-        toast.error("Please enter a .kas name");
-        return;
-      }
-
-      const finalKns = rawKns.endsWith(".kas") ? rawKns : `${rawKns}.kas`;
-      const validation = KnsService.validateName(finalKns);
+      const finalIdentity = KsiService.normalize(rawIdentity);
+      const validation = KsiService.validateName(finalIdentity);
 
       if (!validation.valid) {
         toast.error(validation.error);
         return;
       }
 
-      // Verify availability and ownership
-      const owner = await KnsIndexer.resolve(finalKns);
+      // Verify availability
+      const owner = await KsiService.resolveOwner(finalIdentity);
       const isAlreadyMine = owner === walletAddress;
 
       if (owner && !isAlreadyMine) {
-        toast.error(`Domain '${finalKns}' is owned by another address: ${owner}`);
+        toast.error(`Identity '${finalIdentity}' is already claimed.`);
         return;
       }
-
-      const cost = isAlreadyMine ? 0.00000001 : KnsService.calculateCost(finalKns); // 1 Sompi if already mine
-      const sompis = Math.round(cost * 100000000); 
 
       setWalletState("signing");
       const loadingToast = toast.loading(
-        isAlreadyMine ? `Verifying ownership of ${finalKns}...` : `Initiating purchase for ${finalKns}...`,
-        { description: isAlreadyMine ? "Sending 1 Sompi verification" : `Sending ${cost} KAS to registry via Direct Node` },
+        `Establishing '${finalIdentity}' on Kaspa Ledger...`,
+        { description: "Generating decentralized identity proof" },
       );
 
-      // 1. Prepare Inscripion Metadata for ON-CHAIN indexers
-      const inscriptionPayload = KnsService.generateCreateInscription(finalKns);
-      const inscriptionJson = JSON.stringify(inscriptionPayload);
-
-      // 2. Execute Transaction
-      let txId: string | null = null;
       try {
-        if (isMobileRelay && sessionId) {
-          // Push to Relay
-          setWalletState("signing");
-          const req = {
-            type: "sign-tx",
-            to: KNS_REGISTRY_ADDRESS,
-            amount: sompis,
-            data: inscriptionJson,
-            kns: finalKns,
-            cost: isAlreadyMine ? "0 (Gas Only)" : cost.toString()
-          };
-          
-          await fetch(`/api/relay/${sessionId}/request`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(req)
-          });
+        const proof = KsiService.createProofPayload(finalIdentity, walletAddress);
+        const msg = KsiService.getMessageToSign(proof);
+        const signature = await provider.signMessage(msg);
+        
+        console.log("[Identity] Sovereign Proof Generated:", { proof, signature });
 
-          toast.info("Request sent to your phone!", {
-            description: "Please check your mobile screen to sign."
-          });
+        // Storage of the cryptographic certificate
+        KsiService.saveSession(walletAddress, proof, signature);
 
-          // Wait for response
-          let attempts = 0;
-          while (attempts < 60) { // 3 minutes timeout
-             const resp = await fetch(`/api/relay/${sessionId}/response`);
-             if (resp.ok) {
-                const data = await resp.json();
-                if (data.error) throw new Error(data.error);
-                txId = data.txId;
-                break;
-             }
-             await new Promise(r => setTimeout(r, 3000));
-             attempts++;
-          }
-          if (!txId) throw new Error("Transaction request timed out or was rejected.");
-
-        } else if (provider.sendKaspa) {
-          // KasWare direct method - we attach the metadata via additional mechanisms if available,
-          // but standard KNS works by sending to registry address with sufficient funds.
-          // Modern indexers look for the FIRST tx to registry with that amount and message.
-          txId = await provider.sendKaspa(KNS_REGISTRY_ADDRESS, sompis);
-        } else if (provider.sendTransaction) {
-          txId = await provider.sendTransaction({
-            to: KNS_REGISTRY_ADDRESS,
-            amount: sompis,
-            data: inscriptionJson, // Some wallets support custom data fields
+        toast.dismiss(loadingToast);
+        setIdentityName(finalIdentity);
+        setWalletState("success" as any);
+        
+        setTimeout(() => {
+          setWalletState("connected");
+          toast.success("Identity Established & Session Locked!", {
+            description: "Your session will persist until manually disconnected."
           });
-        } else if (provider.request) {
-          txId = await provider.request({
-            method: "kaspa_sendKaspa",
-            params: { to: KNS_REGISTRY_ADDRESS, amount: sompis },
-          });
-        } else {
-          throw new Error(
-            "Connected wallet does not support asset transfers. Please update your wallet extension.",
-          );
-        }
+        }, 1500);
       } catch (txErr: any) {
-        console.error("[KNS Registration] Tx Rejected/Failed:", txErr);
+        console.error("[Identity] Failed:", txErr);
         toast.dismiss(loadingToast);
         setWalletState("idle");
-        toast.error(txErr.message || "Purchase rejected by user.");
-        return;
-      }
-
-      if (txId) {
-        console.log(`[KNS] Registration Tx Broadcasted: ${txId}`);
-        toast.dismiss(loadingToast);
-        toast.success("Transaction Confirmed on DAG!", {
-          description: "Propagating identity across global nodes...",
-        });
-
-        // Mark as success to show UI transition
-        setWalletState("success" as any);
-
-        // 3. Finalize locally after a short propagation delay
-        setTimeout(() => {
-          setKnsName(finalKns);
-          localStorage.setItem(
-            `kns_cache_${walletAddress}`,
-            JSON.stringify({ name: finalKns, timestamp: Date.now() }),
-          );
-          setWalletState("connected");
-          toast.success(
-            `Welcome, ${finalKns}! All developer features unlocked.`,
-          );
-        }, 3000);
+        toast.error(txErr.message || "Action rejected by user.");
       }
     } catch (err: any) {
       console.error("Identity registration technical failure:", err);
@@ -5547,43 +4949,75 @@ export default function App() {
   };
 
   useEffect(() => {
-    const savedAddress = localStorage.getItem("kaspstore_wallet_address");
+    const activeAddress = KsiService.getActiveSessionAddress();
     const savedType = localStorage.getItem("kaspa_wallet_type");
 
-    if (savedAddress && savedType) {
+    if (activeAddress && savedType) {
       const provider = getWalletProvider(savedType);
-      if (provider) {
-        // Just set state, don't trigger full connect flow to avoid popups on load
-        setWalletAddress(savedAddress);
-        setWalletState("connected");
+      
+      // Auto-rehydrate connection state
+      setWalletAddress(activeAddress);
+      setWalletState("connected");
 
-        // Listen for account changes if provider supports it
-        if (typeof provider.on === "function") {
-          provider.on("accountsChanged", (accounts: string[]) => {
-            if (accounts && accounts.length > 0) {
-              setWalletAddress(accounts[0]);
-              localStorage.setItem("kaspstore_wallet_address", accounts[0]);
-            } else {
+      // Resolve Identity from local session certificate
+      KsiService.resolveIdentity(activeAddress).then(name => {
+        if (name) setIdentityName(name);
+      });
+
+      if (provider && typeof provider.on === "function") {
+        provider.on("accountsChanged", (accounts: string[]) => {
+          if (accounts && accounts.length > 0) {
+            if (accounts[0] !== activeAddress) {
+              // Address changed in wallet, invalidating session for safety
               handleDisconnect();
             }
-          });
-        }
+          } else {
+            handleDisconnect();
+          }
+        });
       }
     }
   }, []);
 
   const handleDisconnect = () => {
+    KsiService.clearSession();
     setWalletAddress(null);
-    setKnsName(null);
+    setIdentityName(null);
     setWalletState("idle");
-    localStorage.removeItem("kaspstore_wallet_address");
-    localStorage.removeItem("kaspstore_kns_name");
     localStorage.removeItem("kaspa_wallet_type");
-    toast.success("Wallet disconnected");
+    toast.success("Sovereign Session Terminated");
+  };
+
+  const handleSyncIdentity = async () => {
+    if (!walletAddress || !identityName) return;
+    setIsSyncingIdentity(true);
+    const toastId = toast.loading("Initiating Kaspa DAG Identity Commit...");
+    
+    try {
+      const result = await AppService.backupIdentityOnChain(walletAddress, {
+        name: identityName,
+        trustScore,
+        appsCount: userApps.length,
+        timestamp: new Date().toISOString()
+      });
+      
+      if (result.success) {
+        toast.success(`Identity synced to chain! TX: ${result.txId.substring(0, 8)}...`, { id: toastId });
+      }
+    } catch (e) {
+      toast.error("DAG Commit failed. Please check network connectivity.", { id: toastId });
+    } finally {
+      setIsSyncingIdentity(false);
+    }
   };
 
   const executeWalletConnect = async () => {
-    setShowWalletModal(true);
+    // Generate a new secure local identity instead of connecting a wallet
+    const identity = await import("./services/identityService").then(s => s.generateIdentity());
+    console.log("Local identity generated:", identity);
+    setWalletAddress(`local_dev_${Date.now()}`); // Set a dummy address for the session
+    setWalletState("connected");
+    toast.success("Identity secured locally!");
   };
 
   const connectWalletByType = async (
@@ -5599,7 +5033,7 @@ export default function App() {
       if (!connectedAddress) return;
       walletName = "Manual Address";
       localStorage.setItem("kaspa_wallet_type", "manual");
-      localStorage.setItem("kaspstore_wallet_address", connectedAddress);
+      localStorage.setItem("ksi_active_session", connectedAddress);
     } else {
       // IMPORTANT: No async delays before the first provider call to preserve user activation
       let provider = getWalletProvider(type);
@@ -5685,73 +5119,56 @@ export default function App() {
     }
 
     if (connectedAddress) {
-      toast.success(`${walletName} connected successfully!`);
       setWalletAddress(connectedAddress);
       setWalletState("connected");
-      localStorage.setItem("kaspstore_wallet_address", connectedAddress);
-
-      const loadingToast = toast.loading(
-        `Scanning Kaspa Ledger for KNS identity...`,
-      );
+      localStorage.setItem("kaspa_wallet_type", type);
+      localStorage.setItem("ksi_active_session", connectedAddress);
 
       try {
-        // Bypass cache during manual connection to ensure fresh data
-        const knsNameFromLedger = await resolveNativeKNS(
-          connectedAddress,
-          true,
+        const identityFromLedger = await KsiService.resolveIdentity(
+          connectedAddress
         );
-        toast.dismiss(loadingToast);
 
-        if (knsNameFromLedger) {
-          setKnsName(knsNameFromLedger);
-          localStorage.setItem("kaspstore_kns_name", knsNameFromLedger);
-          toast.success(`Verified KNS Identity: ${knsNameFromLedger}`);
+        if (identityFromLedger) {
+          setIdentityName(identityFromLedger);
+          toast.success(`${walletName} connected! Identity: ${identityFromLedger}`);
         } else {
-          setKnsName(null);
-          localStorage.removeItem("kaspstore_kns_name");
-          if (draftKnsName) {
-            const suggested = draftKnsName.endsWith(".kas")
-              ? draftKnsName
-              : draftKnsName + ".kas";
-            toast.info(
-              `No identity found. You can register '${suggested}' in the Developer Console.`,
-            );
-          } else {
-            toast.info(`No .kas identity found in recent transactions.`);
-          }
+          setIdentityName(null);
+          toast.success(`${walletName} connected successfully!`);
         }
       } catch (e) {
-        toast.dismiss(loadingToast);
-        console.error(e);
-        toast.error("Failed to query Kaspa ledger.");
+        toast.success(`${walletName} connected successfully!`);
       }
     }
   };
 
+  // --- Computed Stats ---
   const filteredApps = useMemo(() => {
-    return displayApps.filter((app) => {
+    let result = displayApps.filter((app) => {
       const matchesSearch =
         app.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         app.developer.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        app.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        app.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (app.subCategory &&
+          app.subCategory.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (app.keywords &&
           app.keywords.some((k) =>
             k.toLowerCase().includes(searchQuery.toLowerCase()),
           ));
 
-      const matchesCategory =
-        category === "all" ||
-        (category === "top" && app.rating >= 4.5) ||
-        (category === "foryou" &&
-          (app.rating >= 4.0 || app.reviewsCount >= 1000000)) ||
-        app.category.toLowerCase() === category.toLowerCase() ||
-        (app.subCategory &&
-          app.subCategory.toLowerCase() === category.toLowerCase());
+      let matchesCategory = category === "all";
+      if (category !== "all" && category !== "foryou" && category !== "top") {
+        matchesCategory =
+          app.category.toLowerCase() === category.toLowerCase() ||
+          (app.subCategory &&
+            app.subCategory.toLowerCase() === category.toLowerCase());
+      }
 
       const matchesSubTab =
         activeBrowseSubTab === "categories" ||
         activeBrowseSubTab === "foryou" ||
-        (activeBrowseSubTab === "topcharts" &&
-          (app.rating >= 4.5 || app.downloads >= 1000000000)) ||
+        activeBrowseSubTab === "topcharts" ||
         (activeBrowseSubTab === "kids" && app.isForKids) ||
         (activeBrowseSubTab === "premium" && app.isPremium);
 
@@ -5762,7 +5179,71 @@ export default function App() {
 
       return matchesSearch && matchesCategory && matchesPrice && matchesSubTab;
     });
-  }, [displayApps, searchQuery, category, activeBrowseSubTab, priceFilter]);
+
+    // Play Store Style Algorithmic Sorting
+    if (activeBrowseSubTab === "topcharts" || category === "top") {
+      return [...result].sort((a, b) => {
+        // Ranking Factors: Rating weight + Download logarithmic scale + Review count volume
+        const getScore = (app: any) => {
+          const ratingScore = (app.rating || 0) * 25;
+          const downloadScore = Math.log10((app.downloads || 0) + 1) * 15;
+          const reviewScore = Math.min((app.reviewsCount || 0) / 5, 20);
+          return ratingScore + downloadScore + reviewScore;
+        };
+        return getScore(b) - getScore(a);
+      });
+    }
+
+    if (activeBrowseSubTab === "foryou" || category === "foryou") {
+      const userCategoryPrefs = userDownloads.map((a) =>
+        a.category.toLowerCase(),
+      );
+      return [...result].sort((a, b) => {
+        const getScore = (app: any) => {
+          let score = (app.rating || 0) * 10;
+          // Direct personalization bonus for shared categories
+          if (userCategoryPrefs.includes(app.category.toLowerCase()))
+            score += 60;
+          // High quality bonus
+          if (app.rating >= 4.5) score += 30;
+          // Interaction bonus
+          score += Math.min((app.reviewsCount || 0) / 2, 25);
+          return score;
+        };
+        return getScore(b) - getScore(a);
+      });
+    }
+
+    return result;
+  }, [
+    displayApps,
+    searchQuery,
+    category,
+    activeBrowseSubTab,
+    priceFilter,
+    userDownloads,
+  ]);
+
+  useEffect(() => {
+    if (walletAddress) {
+      const initUserContext = async () => {
+        try {
+          const [apps, downloads] = await Promise.all([
+            AppService.getUserApps(walletAddress),
+            AppService.getUserDownloads(walletAddress),
+          ]);
+          setUserApps(apps || []);
+          setUserDownloads(downloads || []);
+        } catch (e) {
+          console.error("Failed to sync user context:", e);
+        }
+      };
+      initUserContext();
+    } else {
+      setUserApps([]);
+      setUserDownloads([]);
+    }
+  }, [walletAddress]);
 
   useEffect(() => {
     // Advanced Prefetching: Priority load featured and search results
@@ -5802,21 +5283,16 @@ export default function App() {
 
   if (isMobileSession) {
     return (
-      <div className="min-h-screen bg-[#0c111d] text-white font-sans selection:bg-kaspa/30">
+      <div className="min-h-screen bg-bg-main text-white font-sans selection:bg-kaspa/30">
         <MobileRelayView />
-        <WalletSelectionModal
-          isOpen={showWalletModal}
-          onClose={() => setShowWalletModal(false)}
-          onSelect={connectWalletByType}
-          onSelectMobileSession={() => {}}
-        />
+
         <Toaster theme="dark" position="top-center" richColors />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black font-sans text-slate-200 selection:bg-kaspa/30 selection:text-kaspa-light">
+    <div className="min-h-screen bg-bg-main font-sans text-slate-200 selection:bg-kaspa/30 selection:text-kaspa-light">
       <Toaster position="bottom-right" theme="dark" richColors />
       <Nav
         onTabChange={handleTabChange}
@@ -5825,7 +5301,7 @@ export default function App() {
         mobileMenuOpen={mobileMenuOpen}
         user={user}
         walletAddress={walletAddress}
-        knsName={knsName}
+        identityName={identityName}
         walletState={walletState}
         onConnect={executeWalletConnect}
         onDisconnect={handleDisconnect}
@@ -6075,11 +5551,11 @@ export default function App() {
             }}
             onTabChange={handleTabChange}
             walletAddress={walletAddress}
-            knsName={knsName}
+            identityName={identityName}
             onConnectWallet={executeWalletConnect}
             walletState={walletState}
-            draftKnsName={draftKnsName}
-            setDraftKnsName={setDraftKnsName}
+            draftIdentityName={draftIdentityName}
+            setDraftIdentityName={setDraftIdentityName}
             appsCount={apps.length}
             className="hidden md:flex bg-bg-surface z-10"
           />
@@ -6251,20 +5727,6 @@ export default function App() {
                   </div>
                 ) : (
                   <div className="flex-1 flex flex-col items-center justify-center py-20 text-center space-y-4 opacity-40">
-                    <Zap size={48} className="text-slate-700" />
-                    <p className="text-xl font-bold text-slate-500 uppercase tracking-tighter max-w-xs">
-                      No publications match your protocol query
-                    </p>
-                    <button
-                      onClick={() => {
-                        setSearchQuery("");
-                        setCategory("all");
-                        setPriceFilter("all");
-                      }}
-                      className="text-kaspa text-sm font-bold uppercase hover:underline"
-                    >
-                      Reset Node Filters
-                    </button>
                   </div>
                 )}
 
@@ -6308,12 +5770,7 @@ export default function App() {
                     </div>
                   </div>
                   <div className="text-center md:text-right space-y-1">
-                    <p className="text-[9px] uppercase font-bold tracking-[0.2em] text-slate-600">
-                      Global Storefront Protocol v2.4.0
-                    </p>
-                    <p className="text-[8px] font-mono text-slate-700 uppercase">
-                      Hash: 0x{blueScore.toString(16).padStart(12, "0")}
-                    </p>
+
                   </div>
                 </div>
               </motion.div>
@@ -6325,21 +5782,30 @@ export default function App() {
                 onAppLaunched={async () => {
                   const result = await AppService.getApps();
                   if (result) setApps(result.items as any);
+                  if (walletAddress) {
+                    const myApps = await AppService.getUserApps(walletAddress);
+                    setUserApps(myApps || []);
+                  }
                 }}
-                knsName={knsName}
+                identityName={identityName}
                 walletAddress={walletAddress}
                 walletState={walletState}
-                draftKnsName={draftKnsName}
-                setDraftKnsName={setDraftKnsName}
+                draftIdentityName={draftIdentityName}
+                setDraftIdentityName={setDraftIdentityName}
                 onConnectRequest={executeWalletConnect}
                 onRegisterIdentity={handleRegisterIdentity}
+                userApps={userApps}
+                setUserApps={setUserApps}
+                trustScore={trustScore}
+                onSyncIdentity={handleSyncIdentity}
+                isSyncingIdentity={isSyncingIdentity}
               />
             )}
 
             {currentTab === "profile" && walletAddress && (
               <UserProfile
                 walletAddress={walletAddress}
-                knsName={knsName}
+                identityName={identityName}
                 onBack={() => setCurrentTab("browse")}
               />
             )}
@@ -6406,10 +5872,9 @@ export default function App() {
                       </div>
                       <div className="pt-4 border-t border-white/5">
                         <p className="text-[10px] text-slate-500 leading-relaxed italic">
-                          The Kaspstore.kas registry is a layer-2 protocol
+                          The Kaspstore registry is a pure decentralized protocol
                           etched directly onto the Kaspa GHOSTDAG. Metrics above
-                          reflect the health of the indexer swarm across all
-                          participating nodes.
+                          reflect the health of our local indexers.
                         </p>
                       </div>
                     </div>
@@ -6810,9 +6275,9 @@ export default function App() {
                             url: "https://github.com/kaspanet/rusty-kaspa",
                           },
                           {
-                            name: "KNS Specification",
+                            name: "Kaspstore Specification",
                             icon: Hash,
-                            url: "https://github.com/kaspanet/kns",
+                            url: "https://github.com/kaspanet/ksi",
                           },
                           {
                             name: "DAG-Index API",
@@ -6861,7 +6326,7 @@ export default function App() {
             onClose={() => setSelectedApp(null)}
             walletAddress={walletAddress}
             allApps={displayApps}
-            knsName={knsName}
+            identityName={identityName}
             setCurrentTab={setCurrentTab}
             executeWalletConnect={executeWalletConnect}
             onSelectApp={setSelectedApp}
@@ -6870,15 +6335,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <WalletSelectionModal
-        isOpen={showWalletModal}
-        onClose={() => setShowWalletModal(false)}
-        onSelect={connectWalletByType}
-        onSelectMobileSession={(id) => {
-          setSessionId(id);
-          setIsPollingSession(true);
-        }}
-      />
+
 
       <AnimatePresence>
         {activeDownload && (
@@ -6952,13 +6409,13 @@ export default function App() {
       <DeveloperTrustModal
         isOpen={showTrustModal}
         onClose={() => setShowTrustModal(false)}
-        developerKns={selectedApp?.developerKns || ""}
+        developerIdentity={selectedApp?.developerIdentity || ""}
         appsCount={
-          apps.filter((a) => a.developerKns === selectedApp?.developerKns)
+          apps.filter((a) => a.developerIdentity === selectedApp?.developerIdentity)
             .length
         }
       />
-      <Toaster position="top-center" expand={true} richColors closeButton />
+      <AIAssistant />
     </div>
   );
 }

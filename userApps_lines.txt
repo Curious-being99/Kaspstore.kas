@@ -1,0 +1,9 @@
+2036:  const [userApps, setUserApps] = useState<any[]>([]);
+2051:    score += userApps.length * 5; // Activity bonus
+2052:    const totalInstalls = userApps.reduce(
+2058:  }, [userApps, identityName]);
+2626:                  {userApps.length}
+2632:                   {userApps.reduce((acc, app) => acc + (app.downloads || 0), 0)}
+3052:                      {userApps.length} Deployments
+3060:                  ) : userApps.length > 0 ? (
+3062:                      {userApps.map((app) => (

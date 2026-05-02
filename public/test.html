@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html>
+<body>
+  <h1>Test</h1>
+  <script>
+    fetch('https://api.kas.fyi/v1/kns/domain/vicisaac.kas')
+      .then(r => r.json())
+      .then(console.log)
+      .catch(console.error);
+  </script>
+</body>
+</html>

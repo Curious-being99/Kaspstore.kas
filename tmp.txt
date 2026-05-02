@@ -1,0 +1,101 @@
+3803-                          <div className="flex items-center gap-4">
+3804-                            <div
+3805-                              className={`w-10 h-10 rounded-lg bg-gradient-to-br ${app.iconGradient} p-0.5 flex-shrink-0`}
+3806-                            >
+3807-                              <img
+3808-                                src={app.icon}
+3809-                                alt={app.name}
+3810-                                className="w-full h-full object-cover rounded-[0.5rem]"
+3811-                              />
+3812-                            </div>
+3813-                            <div>
+3814-                              <h4 className="text-sm font-bold text-white">
+3815-                                {app.name}
+3816-                              </h4>
+3817-                              <p className="text-[10px] text-slate-500 uppercase">
+3818-                                v{app.version} • {app.category}
+3819-                              </p>
+3820-                            </div>
+3821-                          </div>
+3822-                          <button
+3823-                            onClick={() => setEditingApp(app)}
+3824-                            className="p-2 text-slate-400 hover:text-kaspa bg-slate-900 rounded-xl border border-slate-800"
+3825-                          >
+3826-                            <Settings size={16} />
+3827-                          </button>
+3828-                        </div>
+3829-                      ))}
+3830-                    </div>
+3831-                  ) : (
+3832-                    <div className="text-center py-12">
+3833-                      <p className="text-slate-500 italic mb-4">
+3834-                        No applications registered to this node address.
+3835-                      </p>
+3836-                      <button
+3837-                        onClick={() => setActiveTab("launch")}
+3838-                        className="text-kaspa text-xs font-bold uppercase tracking-widest hover:underline"
+3839-                      >
+3840-                        Deploy your first binary
+3841-                      </button>
+3842-                    </div>
+3843-                  )}
+3844-                </div>
+3845-              )}
+3846-            </div>
+3847-          ) : activeTab === "verify" ? (
+3848-            <div className="space-y-8">
+3849-              <div>
+3850-                <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight mb-2">
+3851-                  Verified Proof
+3852-                </h2>
+3853-                <p className="text-slate-400 text-xs md:text-sm">
+3854-                  Establish project legitimacy permanently on the DAG index.
+3855-                </p>
+3856-              </div>
+3857-              <div className="space-y-4">
+3858-                <div className="space-y-2">
+3859-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+3860-                    Source Authenticator (GitHub/GitLab)
+3861-                  </label>
+3862-                  <input
+3863-                    type="text"
+3864-                    value={sourceUrl}
+3865-                    onChange={(e) => setSourceUrl(e.target.value)}
+3866-                    className="w-full bg-black/30 border border-slate-800 rounded-xl px-4 py-3 text-white outline-none focus:border-kaspa/40 text-sm"
+3867-                    placeholder="https://github.com/org/repo"
+3868-                  />
+3869-                </div>
+3870-                <div className="p-5 md:p-6 bg-kaspa/5 border border-kaspa/20 rounded-2xl">
+3871-                  <div className="flex justify-between items-center mb-2">
+3872-                    <h4 className="text-sm font-bold text-white">
+3873-                      Registry Fee
+3874-                    </h4>
+3875-                    <span className="text-kaspa font-mono font-bold">
+3876-                      50 KAS
+3877-                    </span>
+3878-                  </div>
+3879-                  <p className="text-[10px] text-slate-500 leading-relaxed">
+3880-                    This proof will receive a visible verification badge on all
+3881-                    published apps associated with this wallet.
+3882-                  </p>
+3883-                </div>
+3884-              </div>
+3885-              <button
+3886-                onClick={handleVerify}
+3887-                className="w-full bg-kaspa py-4 rounded-xl font-bold text-black uppercase tracking-widest hover:bg-kaspa-light transition-all flex items-center justify-center gap-2"
+3888-              >
+3889-                Submit Proof <ShieldCheck size={16} />
+3890-              </button>
+3891-              {paymentStatus === "success" && (
+3892-                <p className="text-center text-kaspa text-[10px] font-bold uppercase tracking-[0.2em] animate-pulse">
+3893-                  Verification Etched on DAG
+3894-                </p>
+3895-              )}
+3896-            </div>
+3897-          ) : (
+3898-            <>
+3899-              {step === 1 && (
+3900-                <div className="space-y-8">
+3901-                  <div>
+3902-                    <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight mb-2">
+3903:                      Decentralized Asset Registry

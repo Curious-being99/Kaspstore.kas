@@ -12,7 +12,7 @@ export interface KaspStoreMetadata {
   manifest?: string; // URL to manifest.json on 4Everland/IPFS
   sha256: string;
   price: string; // e.g. "Free" or "50"
-  developerKns: string;
+  developerIdentity: string;
   timestamp: number;
 }
 
@@ -45,7 +45,7 @@ export const KaspStoreProtocol = {
 
   async fetchManifest(url: string): Promise<KaspStoreManifest | null> {
     try {
-      const response = await fetch(url);
+      const response = await fetch(`/api/proxy?url=${encodeURIComponent(url)}`);
       if (!response.ok) return null;
       return await response.json();
     } catch (e) {
