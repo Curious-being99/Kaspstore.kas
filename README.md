@@ -1,6 +1,6 @@
 # Kaspstore.kas
 
-Kaspstore.kas is a decentralized application marketplace built on the Kaspa blockchain. It provides a secure, censorship-resistant platform where users can discover, install, and manage applications, manage their digital assets, and participate in community-driven governance.
+Kaspstore.kas is a decentralized appstore built on the Kaspa blockchain. It provides a secure, censorship-resistant platform where users can discover, install, and manage applications, manage their digital assets, and participate in community-driven governance.
 
 ## Features
 
