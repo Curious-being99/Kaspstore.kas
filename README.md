@@ -1,6 +1,6 @@
 # Kaspstore
 
-Kaspstore is a decentralized application distribution protocol built on the Kaspa blockdag. It provides a secure, censorship-resistant platform for discovering, installing, and managing applications with complete user sovereignty.
+Kaspstore is a decentralized application distribution protocol built on the Kaspa blockchain. It provides a secure, censorship-resistant platform for discovering, installing, and managing applications with complete user sovereignty.
 
 ## Core Features
 

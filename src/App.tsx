@@ -2176,7 +2176,7 @@ const DeveloperPortal = ({
   if (!walletAddress) {
     return (
       <div className="max-w-4xl mx-auto py-12 px-4 md:px-8">
-        <div className="bg-bg-surface border border-white/5 rounded-3xl w-full max-w-md mx-auto overflow-hidden shadow-2xl">
+        <div className="bg-[#141414] border border-kaspa/20 rounded-3xl w-full max-w-md mx-auto overflow-hidden shadow-2xl">
           <div className="p-8 pb-10 flex flex-col items-center text-center">
             <div className="w-16 h-16 bg-kaspa/10 border border-kaspa/30 rounded-2xl flex items-center justify-center mb-6">
               <Fingerprint size={32} className="text-kaspa" />
@@ -2214,7 +2214,7 @@ const DeveloperPortal = ({
 
     return (
       <div className="max-w-4xl mx-auto py-12 px-4 md:px-8">
-        <div className="bg-bg-surface border border-white/5 rounded-3xl w-full max-w-md mx-auto overflow-hidden shadow-2xl">
+        <div className="bg-[#141414] border border-kaspa/20 rounded-3xl w-full max-w-md mx-auto overflow-hidden shadow-2xl">
           <div className="p-8 pb-10 flex flex-col items-center text-center">
             <div className="w-16 h-16 bg-kaspa/10 border border-kaspa/30 rounded-2xl flex items-center justify-center mb-6">
               <Globe size={32} className="text-kaspa" />
@@ -3144,9 +3144,9 @@ const DeveloperPortal = ({
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-black/20 p-6 rounded-2xl border border-white/5 space-y-4">
+                <div className="bg-[#141414] p-6 rounded-2xl border border-white/10 space-y-4">
                   <h4 className="text-sm font-black text-white uppercase tracking-widest">Sovereign Identity Status</h4>
-                  <div className="flex items-center gap-3 p-4 bg-slate-900 rounded-xl border border-kaspa/20 overflow-hidden">
+                  <div className="flex items-center gap-3 p-4 bg-[#0f0f0f] rounded-xl border border-kaspa/20 overflow-hidden">
                      <Fingerprint className="text-kaspa shrink-0" size={24} />
                      <div className="min-w-0 flex-1">
                        <div className="text-white font-black text-sm truncate">{identityName}.ks</div>
@@ -3158,7 +3158,7 @@ const DeveloperPortal = ({
                   </p>
                 </div>
 
-                <div className="bg-black/20 p-6 rounded-2xl border border-white/5 space-y-4">
+                <div className="bg-[#141414] p-6 rounded-2xl border border-white/10 space-y-4">
                   <h4 className="text-sm font-black text-white uppercase tracking-widest">Platform Trust Score</h4>
                   <div className="flex items-end gap-3 px-1">
                      <div className="text-4xl font-black text-kaspa leading-none">{trustScore.toFixed(1)}</div>
@@ -3239,7 +3239,7 @@ const DeveloperPortal = ({
 
                   <div className="grid grid-cols-1 gap-8">
                     {/* Section 1: Core Registry Info */}
-                    <div className="bg-black/20 p-6 rounded-3xl border border-white/5 space-y-6">
+                    <div className="bg-[#0f0f0f] p-6 rounded-3xl border border-white/10 space-y-6">
                       <h3 className="text-xs font-black text-kaspa uppercase tracking-[0.2em] flex items-center gap-2">
                         <Fingerprint size={14} /> Identity & Context
                       </h3>
@@ -3365,7 +3365,7 @@ const DeveloperPortal = ({
                     </div>
 
                     {/* Section 2: Visual Assets & Branding */}
-                    <div className="bg-black/20 p-6 rounded-3xl border border-white/5 space-y-6">
+                    <div className="bg-[#0f0f0f] p-6 rounded-3xl border border-white/10 space-y-6">
                       <h3 className="text-xs font-black text-kaspa uppercase tracking-[0.2em] flex items-center gap-2">
                         <ImageIcon size={14} /> Marketing Assets
                       </h3>
